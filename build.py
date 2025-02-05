@@ -40,6 +40,5 @@ else:
     raise ValueError('Task not found')
 
 logging.info('Saving datasets')
-# save data in Pinnoloc/datasets/task_name, now I'm in Pinnoloc/
 save_data(develop_dataset, os.path.join('datasets', args.task, 'develop_dataset'))
 save_data(test_dataset, os.path.join('datasets', args.task, 'test_dataset'))

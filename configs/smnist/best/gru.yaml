@@ -1,0 +1,32 @@
+block_name:
+    'GRU'
+
+seed:
+    42
+
+device:
+    'cpu'
+ 
+block_args:
+
+
+deep_args:
+    n_layers: 1
+    d_model: 2
+    encoder: 'conv1d'
+    min_encoder_scaling: 0.0
+    max_encoder_scaling: 1.0
+    decoder: 'conv1d'
+    min_decoder_scaling: 0.0
+    max_decoder_scaling: 1.0
+    layer_dropout: 0.0
+
+learning_args:
+    batch_size: 128
+    lr: 0.002
+    weight_decay: 0.2
+    plateau: 0.2
+    epochs: 200
+    patience: 10
+    reduce_plateau: 0.2
+    num_epochs: 200

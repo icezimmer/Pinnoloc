@@ -1,0 +1,64 @@
+# Byte-compiled / cached files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment (custom name)
+pinn_env/
+
+# Distribution / Packaging
+build/
+dist/
+*.egg-info/
+pip-wheel-metadata/
+
+# Logs and databases
+*.log
+*.sqlite3
+*.db
+
+# Unit test / Coverage reports
+htmlcov/
+*.cover
+*.py,cover
+.cache
+nosetests.xml
+coverage.xml
+*.mo
+*.pot
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# VS Code settings
+.vscode/
+.settings/
+
+# macOS system files
+.DS_Store
+
+# PyCharm settings
+.idea/
+
+# Ignore environment variables
+.env
+*.env
+
+# Ignore pytest cache
+.pytest_cache/
+
+# Ignore mypy cache
+.mypy_cache/
+
+# Ignore temporary files
+*.swp
+*.swo
+*~
+
+# Saved Data
+data_storage/*
+!data_storage/.gitkeep
+datasets/*
+!datasets/.gitkeep
+checkpoint/*
+!checkpoint/.gitkeep

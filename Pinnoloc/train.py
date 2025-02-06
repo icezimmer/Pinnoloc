@@ -17,6 +17,7 @@ from Pinnoloc.utils.experiments import read_yaml_to_dict
 # from codecarbon import EmissionsTracker
 from Pinnoloc.utils.saving import save_data
 
+
 block_factories = {
     'RNN': VanillaRNN,
     'GRU': VanillaGRU,
@@ -251,8 +252,6 @@ def train(setting, config):
     test_dataloader = DataLoader(test_dataset,
                                     batch_size=learning_args['batch_size'],
                                     shuffle=False)
-    
-    print("...")
 
     logging.info(f'Initializing {block_name} model.')
     model = StackedNetwork(block_cls=block_factories[block_name], n_layers=deep_args['n_layers'],
@@ -297,6 +296,8 @@ def train(setting, config):
         scores = {'test_accuracy': eval_test.accuracy_value}
     else:
         scores = {}
+
+        return scores
     
     
 

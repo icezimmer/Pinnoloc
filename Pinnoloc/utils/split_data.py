@@ -4,6 +4,12 @@ from sklearn.model_selection import train_test_split
 
 
 def random_split_dataset(dataset, val_split):
+    """
+    Randomly split dataset into training and validation sets.
+    - Input:
+        - dataset: torch.utils.data.Dataset
+        - val_split: float, fraction of dataset to include in validation set
+    """
     val_size = int(val_split * len(dataset))
     train_size = len(dataset) - val_size
     train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
@@ -11,18 +17,26 @@ def random_split_dataset(dataset, val_split):
 
 
 def stratified_split_dataset(dataset, val_split):
-    # Automatically extract labels by assuming dataset[i] returns (data, label) or (data, label, length)
+    """
+    Stratified split dataset into training and validation sets.
+    Usable for classification tasks.
+    - Input:
+        - dataset: torch.utils.data.Dataset
+        - val_split: float, fraction of dataset to include in validation set
+    """
+    # Automatically extract targets by assuming dataset[i] returns (data, target) or (data, target, length)
     if len(dataset[0]) == 2:
-        labels = [label for _, label in dataset]
+        targets = [target for _, target in dataset]
     elif len(dataset[0]) == 3:
-        labels = [label for _, label, _ in dataset]
+        targets = [target for _, target, _ in dataset]
     else:
-        raise ValueError("Dataset must return either (inputs, labels) or (inputs, labels, lengths)")
+        raise ValueError("Dataset must return either (inputs, targets) or (inputs, targets, physics)")
 
     train_indices, val_indices = train_test_split(
         range(len(dataset)),
         test_size=val_split,
-        stratify=labels
+        shuffle=True,
+        stratify=targets
     )
     train_dataset = Subset(dataset, train_indices)
     val_dataset = Subset(dataset, val_indices)

@@ -2,7 +2,6 @@ import json
 import os
 import csv
 import torch
-from Pinnoloc.torch_dataset.sequantial_image import SequentialImage2Classify
 
 
 def save_data(data, file_path):
@@ -13,12 +12,31 @@ def save_data(data, file_path):
     torch.save(data, file_path)
 
 
-def load_data(file_path, device='cpu'):
-    # Allow PyTorch to unpickle SequentialImage2Classify
-    torch.serialization.add_safe_globals([SequentialImage2Classify])
-    # Load the data and move it to the specified device
-    loaded_data = torch.load(file_path, map_location=device)
-    return loaded_data
+def load_data(file_path, device='cpu', use_dill=False):
+    """
+    Load a PyTorch data file safely and move it to the specified device.
+
+    Args:
+        file_path (str): Path to the file.
+        device (str): Device to map the loaded tensor ('cpu' or 'cuda').
+        use_dill (bool): If True, use dill for better pickle compatibility.
+
+    Returns:
+        loaded_data: The deserialized PyTorch object.
+
+    Raises:
+        FileNotFoundError: If the file does not exist.
+        RuntimeError: If the file is corrupted or cannot be loaded.
+    """
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"Error: The file '{file_path}' does not exist.")
+
+    try:
+        pickle_module = dill if use_dill else torch.serialization.pickle
+        loaded_data = torch.load(file_path, map_location=device, pickle_module=pickle_module)
+        return loaded_data
+    except Exception as e:
+        raise RuntimeError(f"Error loading file '{file_path}': {e}")
 
 
 def save_hyperparameters(dictionary, file_path):

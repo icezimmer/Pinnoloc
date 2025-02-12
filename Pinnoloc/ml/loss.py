@@ -331,7 +331,7 @@ class HeadingLoss(torch.nn.Module):
     
 
 class DistanceLoss(torch.nn.Module):
-    def __init__(self, lambda_data, lambda_physics):
+    def __init__(self, lambda_data, lambda_physics, mean_input=0.0, std_input=1.0, mean_target=0.0, std_target=1.0):
         """
         Custom loss function that combines data prediction loss with physics-based loss for RSSI path loss.
         - Input:
@@ -342,8 +342,13 @@ class DistanceLoss(torch.nn.Module):
         self.lambda_data = lambda_data
         self.lambda_physics = lambda_physics
         self.data_loss_fn = torch.nn.MSELoss()
+        self.mean_input = mean_input
+        self.std_input = std_input
+        self.mean_target = mean_target
+        self.std_target = std_target
+        
 
-    def forward(self, model, input, target, physics_data=None):
+    def forward(self, model, input, target, physics_data):
         if physics_data is None:
             output = model(input)
             total_loss = self.data_loss_fn(output, target)
@@ -352,8 +357,13 @@ class DistanceLoss(torch.nn.Module):
             output = model(input)
             data_loss = self.data_loss_fn(output, target)  # Data prediction loss
 
-            # Collocation points for the physics loss (using the same RSS range)
-            P_collocation = torch.linspace(-10, 10, 1000, device=input.device, requires_grad=True).view(-1, 1)
+            # Collocation points for the physics loss representing RSSI with uniform distribution
+            # P_collocation = torch.linspace(-3, 3, 1000, device=input.device, requires_grad=True).view(-1, 1)
+
+            # Collocation points for the physics loss representing RSSI with normal distribution
+            P_collocation = torch.randn(1000, 1, device=input.device, requires_grad=True)
+            
+
             
             # Physics loss: enforce the differential equation
             # Compute the derivative dx/dP using autograd,
@@ -367,14 +377,24 @@ class DistanceLoss(torch.nn.Module):
             )[0]
             
             # Differential equation: dx/dP + (ln(10)/(10*alpha)) * x = 0 if data not standardized
-            # x* = sigma_x * x + mu_x, P* = sigma_P * P + mu_P
-            # dx*/dP* = d(sigma_x * x + mu_x) / d(sigma_P * P + mu_P) = (sigma_x / sigma_P) * dx/dP
-            # dx/dP = (sigma_P / sigma_x) * (dx*/dP*)
-            sigma_x = physics_data[:, 0]
-            sigma_P = physics_data[:, 1]
-            alpha = physics_data[:, 2]
-            residual = (sigma_P / sigma_x) * dx_dP + (((torch.log(torch.tensor(10.0))) / (10 * alpha)) * x_pred_collocation)
+            # x = sigma_x * x* + mu_x, P = sigma_P * P* + mu_P, x* standardized distance, P* standardized RSSI
+            # dx/dP = d(sigma_x * x* + mu_x) / d(sigma_P * P* + mu_P) = (sigma_x / sigma_P) * dx*/dP*
+            # alpha = physics_data[0, 0]
+            x_pred_collocation = self.std_target * x_pred_collocation + self.mean_target
+            dx_dP = (self.std_target / self.std_input) * dx_dP
+            k = torch.log(torch.tensor(10.0)) / (10 * model.alpha)
+            residual = dx_dP + k * x_pred_collocation
+
+            # # print all the shapes
+            # print(f"dx_dP: {dx_dP.shape}, x_pred_collocation: {x_pred_collocation.shape}, residual: {residual.shape}, alpha: {alpha.shape}")
+
             physics_loss = torch.mean(residual**2)
+
+            # Initial condition: x(P0) = x0 > 0, i.e. x(-50) = 1
+            # P0 = (torch.tensor(-50.0, device=input.device).view(-1,1) - self.mean_input) / self.std_input
+            # x0 = (torch.tensor(1.0, device=input.device).view(-1,1) - self.mean_target) / self.std_target
+            # x0_pred = model(P0)
+            # physics_loss += (x0_pred - x0)**2
 
             # Compute total loss
             total_loss = self.lambda_data * data_loss + self.lambda_physics * physics_loss

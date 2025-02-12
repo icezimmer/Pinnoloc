@@ -10,6 +10,7 @@ from Pinnoloc.ml.optimization import setup_optimizer
 from Pinnoloc.ml.loss import DistanceLoss
 from Pinnoloc.ml.training import TrainPhysicsModel
 from Pinnoloc.ml.evaluation import EvaluateRegressor
+from Pinnoloc.dataset.preprocessing import compute_mean_std, StandardizeDataset
 from Pinnoloc.utils.saving import load_data, save_hyperparameters, update_results, update_hyperparameters
 from Pinnoloc.utils.check_device import check_model_device
 from Pinnoloc.utils.experiments import read_yaml_to_dict
@@ -41,21 +42,12 @@ def main():
     logging.info(f"Setting seed: {seed}")
     set_seed(seed)
 
-    criterion = DistanceLoss(lambda_data=lambda_data, lambda_physics=lambda_physics)
-
     logging.info(f'Loading {task_name} develop and test datasets.')
     try:
         develop_dataset = load_data(os.path.join('datasets', task_name, 'develop_dataset'))
         test_dataset = load_data(os.path.join('datasets', task_name, 'test_dataset'))
     except FileNotFoundError:
         logging.error(f"Dataset not found for {task_name}. Run build.py first.")
-
-    develop_dataloader = DataLoader(develop_dataset,
-                                    batch_size=batch_size,
-                                    shuffle=False)
-    test_dataloader = DataLoader(test_dataset,
-                                    batch_size=batch_size,
-                                    shuffle=False)
 
     logging.info(f'Initializing model.')
     model = StackedVectorModel(n_layers=n_layers, d_input=d_input, hidden_units=hidden_units, d_output=d_output)
@@ -67,10 +59,33 @@ def main():
 
     logging.info('Splitting develop data into training and validation data.')
     train_dataset, val_dataset = random_split_dataset(dataset=develop_dataset, val_split=val_split)
+
+    logging.info('Standardizing datasets.')
+    train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False)
+    x_mean, x_std, y_mean, y_std = compute_mean_std(train_dataloader)
+    print(x_mean, x_std, y_mean, y_std)
+    train_dataset = StandardizeDataset(base_dataset=train_dataset,
+                                       mean_input=x_mean, std_input=x_std,
+                                       mean_target=y_mean, std_target=y_std)
+    val_dataset = StandardizeDataset(base_dataset=val_dataset,
+                                     mean_input=x_mean, std_input=x_std,
+                                     mean_target=y_mean, std_target=y_std)
+    develop_dataset = StandardizeDataset(base_dataset=develop_dataset,
+                                         mean_input=x_mean, std_input=x_std,
+                                         mean_target=y_mean, std_target=y_std)
+    test_dataset = StandardizeDataset(base_dataset=test_dataset,
+                                      mean_input=x_mean, std_input=x_std,
+                                      mean_target=y_mean, std_target=y_std)
+
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+    develop_dataloader = DataLoader(develop_dataset, batch_size=batch_size, shuffle=False)
+    test_dataloader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
     logging.info('Setting optimizer and trainer.')
+    criterion = DistanceLoss(lambda_data=lambda_data, lambda_physics=lambda_physics,
+                             mean_input=x_mean, std_input=x_std,
+                             mean_target=y_mean, std_target=y_std)
     optimizer = setup_optimizer(model=model, lr=lr, weight_decay=weight_decay)
     trainer = TrainPhysicsModel(model=model, optimizer=optimizer, criterion=criterion,
                             develop_dataloader=develop_dataloader)
@@ -83,13 +98,11 @@ def main():
 
     logging.info('Evaluating model on develop set.')
     eval_dev = EvaluateRegressor(model=model, dataloader=develop_dataloader)
-    mean = develop_dataset[0][2][0].item()
-    std = develop_dataset[0][2][1].item()
-    eval_dev.evaluate(mean=mean, std=std)
+    eval_dev.evaluate(mean=y_mean, std=y_std)
 
     logging.info('Evaluating model on test set.')
     eval_test = EvaluateRegressor(model=model, dataloader=test_dataloader)
-    eval_test.evaluate(mean=mean, std=std)
+    eval_test.evaluate(mean=y_mean, std=y_std)
     scores = {'test_mse': eval_test.mse}
 
     print(scores)

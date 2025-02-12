@@ -12,6 +12,9 @@ class StackedVectorModel(nn.Module):
                  use_batchnorm=True, 
                  dropout_rate=0.0):
         super(StackedVectorModel, self).__init__()
+
+        # set new parameters
+        self.alpha = nn.Parameter(torch.tensor(2.0), requires_grad=True)
         
         layers = []
         in_features = d_input

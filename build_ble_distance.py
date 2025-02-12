@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 from data_storage.Dataset_AoA_RSS_BLE51.data_utils import load_raw_dataset, load_gt_dataset, load_grid_dataset, create_anchors_dataset
-from Pinnoloc.torch_dataset.ble_dataset import BLEDatasetDistance
+from Pinnoloc.dataset.ble_dataset import BLEDatasetDistance
 from Pinnoloc.utils.split_data import random_split_dataset
 from Pinnoloc.utils.saving import save_data
 import logging
@@ -110,7 +110,8 @@ def preprocess_df(df):
     # Standardize the RSS_1st_Pol, AoA_Az, AoA_El, RSS_2nd_Pol columns respectively
     # df['feature/RSS_1st_Pol'] = (df['RSS_1st_Pol'] - df['RSS_1st_Pol'].mean()) / df['RSS_1st_Pol'].std()
     # df['feature/RSS_2nd_Pol'] = (df['RSS_2nd_Pol'] - df['RSS_2nd_Pol'].mean()) / df['RSS_2nd_Pol'].std()
-    df['feature/RSS'] = (df['RSS_2nd_Pol'] - df['RSS_2nd_Pol'].mean()) / df['RSS_2nd_Pol'].std()
+    #df['feature/RSS'] = (df['RSS_2nd_Pol'] - df['RSS_2nd_Pol'].mean()) / df['RSS_2nd_Pol'].std()
+    df['feature/RSS'] = df['RSS_2nd_Pol']
     # cos and sin of the azimuth angle
     # df['feature/AoA_Az_x'] = df['AoA_Az'].apply(lambda x: np.cos(x))
     # df['feature/AoA_Az_y'] = df['AoA_Az'].apply(lambda x: np.sin(x))
@@ -120,10 +121,11 @@ def preprocess_df(df):
     # df['feature/Distance'] = df['Distance']
     # df['feature/Az_Departure'] = df['Az_Departure']
 
-    df['target/Distance'] = (df['Distance'] - df['Distance'].mean()) / df['Distance'].std()
+    # df['target/Distance'] = (df['Distance'] - df['Distance'].mean()) / df['Distance'].std()
+    df['target/Distance'] = df['Distance']
 
-    df['physics/Distance_std'] = df['Distance'].std()
-    df['physics/RSS_std'] = df['RSS_2nd_Pol'].std()
+    # df['physics/Distance_std'] = df['Distance'].std()
+    # df['physics/RSS_std'] = df['RSS_2nd_Pol'].std()
     # df['physics/RSS'] = df['RSS_2nd_Pol']
     # df['physics/RSS_1m'] = df['RSS_1m']
     df['physics/alpha'] = df['alpha']

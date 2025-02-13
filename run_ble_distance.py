@@ -5,7 +5,7 @@ from Pinnoloc.utils.experiments import set_seed
 from torch.utils.data import DataLoader
 from Pinnoloc.utils.split_data import random_split_dataset
 from Pinnoloc.utils.printing import print_num_trainable_params, print_parameters
-from Pinnoloc.models.vector import StackedVectorModel
+from Pinnoloc.models.vector import StackedVectorModel, DistanceModel
 from Pinnoloc.ml.optimization import setup_optimizer
 from Pinnoloc.ml.loss import DistanceLoss
 from Pinnoloc.ml.training import TrainPhysicsModel
@@ -37,7 +37,7 @@ def main():
     reduce_plateau = 0.1
     num_epochs = 100
     lambda_data = 1.0
-    lambda_physics = 1.0
+    lambda_physics = 10.0
 
     logging.info(f"Setting seed: {seed}")
     set_seed(seed)
@@ -50,7 +50,7 @@ def main():
         logging.error(f"Dataset not found for {task_name}. Run build.py first.")
 
     logging.info(f'Initializing model.')
-    model = StackedVectorModel(n_layers=n_layers, d_input=d_input, hidden_units=hidden_units, d_output=d_output)
+    model = DistanceModel(n_layers=n_layers, d_input=d_input, hidden_units=hidden_units, d_output=d_output)
 
     # print_num_trainable_params(model)
 

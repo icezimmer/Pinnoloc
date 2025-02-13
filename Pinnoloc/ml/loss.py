@@ -338,6 +338,8 @@ class DistanceLoss(torch.nn.Module):
             - lambda_data: Weight for data prediction loss.
             - lambda_physics: Weight for physics-based loss.
         """
+        if lambda_data < 0 or lambda_physics < 0:
+            raise ValueError("Lambda weights must be non-negative.")
         super(DistanceLoss, self).__init__()
         self.lambda_data = lambda_data
         self.lambda_physics = lambda_physics
@@ -348,8 +350,8 @@ class DistanceLoss(torch.nn.Module):
         self.std_target = std_target
         
 
-    def forward(self, model, input, target, physics_data):
-        if physics_data is None:
+    def forward(self, model, input, target, physics_data=None):
+        if self.lambda_physics == 0:
             output = model(input)
             total_loss = self.data_loss_fn(output, target)
         
@@ -361,17 +363,17 @@ class DistanceLoss(torch.nn.Module):
             # P_collocation = torch.linspace(-3, 3, 1000, device=input.device, requires_grad=True).view(-1, 1)
 
             # Collocation points for the physics loss representing RSSI with normal distribution
-            P_collocation = torch.randn(1000, 1, device=input.device, requires_grad=True)
+            # P_collocation = torch.randn(1000, 1, device=input.device, requires_grad=True)
             
 
             
             # Physics loss: enforce the differential equation
             # Compute the derivative dx/dP using autograd,
             # where x represents the distance and P the RSSI in dBm
-            x_pred_collocation = model(P_collocation)
+            x_pred_collocation = model(model.P_collocation)
             dx_dP = torch.autograd.grad(
                 outputs=x_pred_collocation,
-                inputs=P_collocation,
+                inputs=model.P_collocation,
                 grad_outputs=torch.ones_like(x_pred_collocation),  # dLoss/dx = 1, dLoss/dP = dLoss/dx * dx/dP
                 create_graph=True
             )[0]
@@ -380,10 +382,12 @@ class DistanceLoss(torch.nn.Module):
             # x = sigma_x * x* + mu_x, P = sigma_P * P* + mu_P, x* standardized distance, P* standardized RSSI
             # dx/dP = d(sigma_x * x* + mu_x) / d(sigma_P * P* + mu_P) = (sigma_x / sigma_P) * dx*/dP*
             # alpha = physics_data[0, 0]
-            x_pred_collocation = self.std_target * x_pred_collocation + self.mean_target
-            dx_dP = (self.std_target / self.std_input) * dx_dP
-            k = torch.log(torch.tensor(10.0)) / (10 * model.alpha)
-            residual = dx_dP + k * x_pred_collocation
+            # x_pred_collocation = self.std_target * x_pred_collocation + self.mean_target
+            # dx_dP = (self.std_target / self.std_input) * dx_dP
+            # k = torch.log(torch.tensor(10.0)) / (10 * model.alpha)
+            # residual = dx_dP + k * x_pred_collocation
+
+            residual = dx_dP + torch.einsum('f,bf->bf', model.path_loss, x_pred_collocation)
 
             # # print all the shapes
             # print(f"dx_dP: {dx_dP.shape}, x_pred_collocation: {x_pred_collocation.shape}, residual: {residual.shape}, alpha: {alpha.shape}")

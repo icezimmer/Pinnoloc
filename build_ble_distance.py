@@ -89,23 +89,24 @@ def preprocess_df(df):
     
     # Take only the Channel = 37 with the 2nd polarization
     df = df[df['Channel'] == 37]
+    # Take only the Anchor_ID = 6501
+    df = df[df['Anchor_ID'] == 6501]
 
     # Set RSS_1m as the reference RSS value and the path-loss value for each Anchor_ID
     # Anchor_ID 6501: (RSS_1m = -58.10682936089764, alpha = 1.4589097985754986)
     # Anchor_ID 6502: (RSS_1m = -59.1429209008935, alpha = 2.055682881628363)
     # Anchor_ID 6503: (RSS_1m = -58.00410788271862, alpha = 1.462165416607945)
     # Anchor_ID 6504: (RSS_1m = -58.28560404488733, alpha = 1.556561011399692)
-    df['RSS_1m'] = 0.0
-    df['alpha'] = 0.0
-    df.loc[df['Anchor_ID'] == 6501, 'RSS_1m'] = -58.10682936089764
-    df.loc[df['Anchor_ID'] == 6501, 'alpha'] = 1.4589097985754986
-    df.loc[df['Anchor_ID'] == 6502, 'RSS_1m'] = -59.1429209008935
-    df.loc[df['Anchor_ID'] == 6502, 'alpha'] = 2.055682881628363
-    df.loc[df['Anchor_ID'] == 6503, 'RSS_1m'] = -58.00410788271862
-    df.loc[df['Anchor_ID'] == 6503, 'alpha'] = 1.462165416607945
-    df.loc[df['Anchor_ID'] == 6504, 'RSS_1m'] = -58.28560404488733
-    df.loc[df['Anchor_ID'] == 6504, 'alpha'] = 1.556561011399692
-    print(df[df['Anchor_ID'] == 6501]['RSS_1m'].unique())
+    # df['RSS_1m'] = 0.0
+    # df['alpha'] = 0.0
+    # df.loc[df['Anchor_ID'] == 6501, 'RSS_1m'] = -58.10682936089764
+    # df.loc[df['Anchor_ID'] == 6501, 'alpha'] = 1.4589097985754986
+    # df.loc[df['Anchor_ID'] == 6502, 'RSS_1m'] = -59.1429209008935
+    # df.loc[df['Anchor_ID'] == 6502, 'alpha'] = 2.055682881628363
+    # df.loc[df['Anchor_ID'] == 6503, 'RSS_1m'] = -58.00410788271862
+    # df.loc[df['Anchor_ID'] == 6503, 'alpha'] = 1.462165416607945
+    # df.loc[df['Anchor_ID'] == 6504, 'RSS_1m'] = -58.28560404488733
+    # df.loc[df['Anchor_ID'] == 6504, 'alpha'] = 1.556561011399692
 
     # Standardize the RSS_1st_Pol, AoA_Az, AoA_El, RSS_2nd_Pol columns respectively
     # df['feature/RSS_1st_Pol'] = (df['RSS_1st_Pol'] - df['RSS_1st_Pol'].mean()) / df['RSS_1st_Pol'].std()
@@ -128,7 +129,7 @@ def preprocess_df(df):
     # df['physics/RSS_std'] = df['RSS_2nd_Pol'].std()
     # df['physics/RSS'] = df['RSS_2nd_Pol']
     # df['physics/RSS_1m'] = df['RSS_1m']
-    df['physics/alpha'] = df['alpha']
+    # df['physics/alpha'] = df['alpha']
 
     return df
 
@@ -139,9 +140,9 @@ def main():
     task_name = 'ble_distance'
 
     df = create_df()
-    print(df.head())
+    print(df)
     df = preprocess_df(df)
-    print(df.head())
+    print(df)
 
     feature_columns = [col for col in df.columns if col.startswith('feature/')]
     target_column = [col for col in df.columns if col.startswith('target/')]

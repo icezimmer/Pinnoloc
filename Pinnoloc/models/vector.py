@@ -12,9 +12,6 @@ class StackedVectorModel(nn.Module):
                  use_batchnorm=True, 
                  dropout_rate=0.0):
         super(StackedVectorModel, self).__init__()
-
-        # set new parameters
-        self.alpha = nn.Parameter(torch.tensor(2.0), requires_grad=True)
         
         layers = []
         in_features = d_input
@@ -37,3 +34,19 @@ class StackedVectorModel(nn.Module):
         x = torch.flatten(x, start_dim=1)  # Flatten for FC layers
         x = self.mlp(x)
         return x
+
+
+# Define a subclass of the StackedVectorModel that uses learnable path loss
+class DistanceModel(StackedVectorModel):
+    def __init__(self, 
+                 n_layers,
+                 d_input,
+                 hidden_units,  # List of hidden units
+                 d_output, 
+                 activation=nn.ReLU,
+                 use_batchnorm=True, 
+                 dropout_rate=0.0):
+        super(DistanceModel, self).__init__(n_layers, d_input, hidden_units, d_output, activation, use_batchnorm, dropout_rate)
+
+        self.P_collocation = torch.randn(1000, 1, requires_grad=True)
+        self.path_loss = nn.Parameter(torch.ones(d_input), requires_grad=True)

@@ -10,8 +10,9 @@ import argparse
 def parse_args():
     # Create the parser
     parser = argparse.ArgumentParser(description='Path Loss Exponent Estimation')
-    # Add the anchor_id argument
-    parser.add_argument('--anchor_id', type=int, help='The ID of the anchor node', required=True, choices=[6501, 6502, 6503, 6504])
+    parser.add_argument('--anchor', type=int, help='The ID of the anchor node', required=True, choices=[6501, 6502, 6503, 6504])
+    parser.add_argument('--channel', type=int, help='The BLE channel', required=True, choices=[37, 38, 39])
+    parser.add_argument('--polarization', type=str, help='The BLE polarization', required=True, choices=['1st', '2nd'])
 
     return parser.parse_args()
 
@@ -42,11 +43,13 @@ def main():
 
     # Take the arguments from the command line
     args = parse_args()
-    anchor_id = args.anchor_id
+    anchor = args.anchor
+    channel = args.channel
+    polarization = args.polarization
 
     # Filter calibration data
-    calibration_df_filtered = calibration_df[calibration_df['Anchor_ID'] == anchor_id].reset_index(drop=True)
-    print(f"Calibration Data for {anchor_id}:")
+    calibration_df_filtered = calibration_df[calibration_df['Anchor_ID'] == anchor].reset_index(drop=True)
+    print(f"Calibration Data for {anchor}:")
     print(calibration_df_filtered)
 
     # Plot the Ground Truth Calibration Points and Anchors
@@ -74,13 +77,13 @@ def main():
     calibration_df_filtered['GT_ID'] = interval_positions
     calibration_df_filtered = calibration_df_filtered[calibration_df_filtered['GT_ID'] != -1]
     calibration_df_filtered = calibration_df_filtered.reset_index(drop=True)
-    print(f"\nCalibration Data for {anchor_id} with GT_ID:")
+    print(f"\nCalibration Data for {anchor} with GT_ID:")
     print(calibration_df_filtered)
 
-    # Take only the Channel = 37 with the 2nd polarization
-    rss_df = calibration_df_filtered[calibration_df_filtered['Channel'] == 37]
-    rss_df = rss_df[['RSS_2nd_Pol', 'GT_ID']]
-    rss_df = rss_df.rename(columns={'RSS_2nd_Pol': 'RSS'})
+    # The best is the Channel = 37 with the 2nd polarization
+    rss_df = calibration_df_filtered[calibration_df_filtered['Channel'] == channel]
+    rss_df = rss_df[[f'RSS_{polarization}_Pol', 'GT_ID']]
+    rss_df = rss_df.rename(columns={f'RSS_{polarization}_Pol': 'RSS'})
     # Drop the RSS values that have Z scores greater than 2
     rss_df = rss_df[np.abs(rss_df['RSS'] - rss_df['RSS'].mean()) <= (2 * rss_df['RSS'].std())]
     # Group by GT_ID and compute mean and list aggregation
@@ -88,7 +91,7 @@ def main():
     print("\nRSS Data:")
     print(rss_df)
 
-    anchors_df_filtered = anchors_df[anchors_df['Anchor_ID'] == anchor_id].reset_index(drop=True)
+    anchors_df_filtered = anchors_df[anchors_df['Anchor_ID'] == anchor].reset_index(drop=True)
     # Extract the points as Nx2 and Mx2 arrays
     anchors_points = anchors_df_filtered[['Pos_x', 'Pos_y']].values  # Shape (M, 2)
     gt_points = gt_calibration_df[['X','Y']].values  # Shape (N, 2)
@@ -103,15 +106,15 @@ def main():
 
     # Merge the RSS data with the ground truth calibration data
     cal_df = gt_calibration_df.merge(rss_df, left_index=True, right_on='GT_ID')
-    cal_df = cal_df[['GT_ID', f'Distance_to_{anchor_id}', 'Mean_RSS', 'RSS_List']]
+    cal_df = cal_df[['GT_ID', f'Distance_to_{anchor}', 'Mean_RSS', 'RSS_List']]
     # Sort the calibration data by distance to the anchor
-    cal_df = cal_df.sort_values(by=f'Distance_to_{anchor_id}')
+    cal_df = cal_df.sort_values(by=f'Distance_to_{anchor}')
     cal_df = cal_df.reset_index(drop=True)
     print("\nGround Truth Calibration Data with Distances sorted and RSS:")
     print(cal_df)
 
     # Take the logarithm (base 10) of the distances
-    exp10_X = cal_df[f'Distance_to_{anchor_id}'].values.reshape(-1, 1)
+    exp10_X = cal_df[f'Distance_to_{anchor}'].values.reshape(-1, 1)
     X = np.log10(exp10_X)
     y = cal_df['Mean_RSS'].values
     # Fit a linear regression model
@@ -131,14 +134,14 @@ def main():
     plt.figure(num=2)
     # Plot the RSS list values
     all_rss_df = cal_df.explode('RSS_List')
-    exp10_XX = all_rss_df[f'Distance_to_{anchor_id}'].values
+    exp10_XX = all_rss_df[f'Distance_to_{anchor}'].values
     z = all_rss_df['RSS_List'].values
     plt.scatter(exp10_XX, z, color='blue', marker='.', alpha=0.3, label='RSS values')
     plt.scatter(exp10_X, y, color='red', marker='*', label='Mean RSS values')
     plt.plot(exp10_X, model.predict(X), color='black', label='Log10 Regression Model')
-    plt.xlabel(f'Distance to Anchor {anchor_id}')
+    plt.xlabel('Distance to Anchor')
     plt.ylabel('RSS')
-    plt.title(f'RSS vs. Distance to Anchor {anchor_id}')
+    plt.title(f'Anchor {anchor}, Channel {channel}, Polarization {polarization}')
     plt.grid(True)
     plt.legend()
     plt.show()

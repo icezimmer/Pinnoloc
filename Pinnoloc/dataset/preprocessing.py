@@ -47,7 +47,7 @@ def compute_mean_std(dataloader):
 
 
 class StandardizeDataset(Dataset):
-    def __init__(self, base_dataset, mean_input, std_input, mean_target=None, std_target=None):
+    def __init__(self, base_dataset, mean_input=None, std_input=None, mean_target=None, std_target=None):
         self.base_dataset = base_dataset
         self.mean_input = mean_input
         self.std_input = std_input
@@ -62,21 +62,27 @@ class StandardizeDataset(Dataset):
         item = self.base_dataset[idx]
         if len(item) == 3:
             x, y, physics = item
-            x_std = self.standardize(x, self.mean_input, self.std_input)
-            if self.mean_target is not None and self.std_target is not None:
-                y_std = self.standardize(y, self.mean_target, self.std_target)
+            if self.mean_input is not None and self.std_input is not None:
+                x_new = self.standardize(x, self.mean_input, self.std_input)
             else:
-                y_std = y
+                x_new = x
+            if self.mean_target is not None and self.std_target is not None:
+                y_new = self.standardize(y, self.mean_target, self.std_target)
+            else:
+                y_new = y
 
-            return x_std, y_std, physics
+            return x_new, y_new, physics
         else:
             x, y = item
-            x_std = self.standardize(x, self.mean_input, self.std_input)
-            if self.mean_target is not None and self.std_target is not None:
-                y_std = self.standardize(y, self.mean_target, self.std_target)
+            if self.mean_input is not None and self.std_input is not None:
+                x_new = self.standardize(x, self.mean_input, self.std_input)
             else:
-                y_std = y
-            return x_std, y_std
+                x_new = x
+            if self.mean_target is not None and self.std_target is not None:
+                y_new = self.standardize(y, self.mean_target, self.std_target)
+            else:
+                y_new = y
+            return x_new, y_new
     
     def __len__(self):
         return len(self.base_dataset)

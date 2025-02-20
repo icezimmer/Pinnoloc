@@ -8,8 +8,8 @@ class StackedVectorModel(nn.Module):
                  d_input,
                  hidden_units,  # List of hidden units
                  d_output, 
-                 activation=nn.ReLU,
-                 use_batchnorm=True, 
+                 activation=nn.Tanh,
+                 use_batchnorm=False, 
                  dropout_rate=0.0):
         super(StackedVectorModel, self).__init__()
         
@@ -43,10 +43,10 @@ class DistanceModel(StackedVectorModel):
                  d_input,
                  hidden_units,  # List of hidden units
                  d_output, 
-                 activation=nn.ReLU,
-                 use_batchnorm=True, 
+                 activation=nn.Tanh,
+                 use_batchnorm=False, 
                  dropout_rate=0.0):
         super(DistanceModel, self).__init__(n_layers, d_input, hidden_units, d_output, activation, use_batchnorm, dropout_rate)
 
-        self.P_collocation = torch.randn(1000, 1, requires_grad=True)
         self.path_loss = nn.Parameter(torch.ones(d_input), requires_grad=True)
+        # self.path_loss = torch.tensor([2.0])

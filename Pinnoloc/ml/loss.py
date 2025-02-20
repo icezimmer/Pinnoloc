@@ -348,7 +348,36 @@ class DistanceLoss(torch.nn.Module):
         self.std_input = std_input
         self.mean_target = mean_target
         self.std_target = std_target
-        
+
+    def plot(self, model, input, target, physics_data=None):
+        # Collocation points for the physics loss representing RSSI with normal distribution
+        P_collocation = self.collocation_points(device=input.device, requires_grad=False)
+        # x_pred_collocation = model(P_collocation)
+        # dx_dP = torch.autograd.grad(
+        #     outputs=x_pred_collocation,
+        #     inputs=P_collocation,
+        #     grad_outputs=torch.ones_like(x_pred_collocation),  # dLoss/dx = 1, dLoss/dP = dLoss/dx * dx/dP
+        #     create_graph=False
+        # )[0]
+        # approx = - torch.einsum('f,bf->bf', model.path_loss, x_pred_collocation)
+        # Scatter plot
+        import matplotlib.pyplot as plt
+        plt.scatter(P_collocation.cpu().detach().numpy(), model(P_collocation).cpu().detach().numpy(), label='Predicted Collocation')
+        plt.scatter(input.cpu().detach().numpy(), target.cpu().detach().numpy(), label='True Data')
+        plt.scatter(input.cpu().detach().numpy(), model(input).cpu().detach().numpy(), label='Predicted Data')
+        # plt.scatter(P_collocation.cpu().detach().numpy(), dx_dP.cpu().detach().numpy(), label='dx_dP')
+        # plt.scatter(P_collocation.cpu().detach().numpy(), approx.cpu().detach().numpy(), label='-alpha * x')
+        plt.xlabel('RSSI P (dBm)')
+        plt.ylabel('Distance x (m)')
+        plt.legend()
+        plt.show()
+
+    @staticmethod
+    def collocation_points(device, requires_grad=True):
+        # Collocation points for the physics loss representing RSSI with normal distribution
+        # P_collocation = torch.randn(1000, 1, device=device, requires_grad=requires_grad)
+        P_collocation = torch.linspace(-120, -10, 1000, device=device, requires_grad=requires_grad).view(-1, 1)
+        return P_collocation
 
     def forward(self, model, input, target, physics_data=None):
         if self.lambda_physics == 0:
@@ -363,17 +392,15 @@ class DistanceLoss(torch.nn.Module):
             # P_collocation = torch.linspace(-3, 3, 1000, device=input.device, requires_grad=True).view(-1, 1)
 
             # Collocation points for the physics loss representing RSSI with normal distribution
-            # P_collocation = torch.randn(1000, 1, device=input.device, requires_grad=True)
-            
-
+            P_collocation = self.collocation_points(device=input.device, requires_grad=True)
             
             # Physics loss: enforce the differential equation
             # Compute the derivative dx/dP using autograd,
             # where x represents the distance and P the RSSI in dBm
-            x_pred_collocation = model(model.P_collocation)
+            x_pred_collocation = model(P_collocation)
             dx_dP = torch.autograd.grad(
                 outputs=x_pred_collocation,
-                inputs=model.P_collocation,
+                inputs=P_collocation,
                 grad_outputs=torch.ones_like(x_pred_collocation),  # dLoss/dx = 1, dLoss/dP = dLoss/dx * dx/dP
                 create_graph=True
             )[0]

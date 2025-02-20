@@ -36,8 +36,8 @@ def main():
     patience = 10
     reduce_plateau = 0.1
     num_epochs = 100
-    lambda_data = 1.0
-    lambda_physics = 10.0
+    lambda_data = 0.0
+    lambda_physics = 100.0
 
     logging.info(f"Setting seed: {seed}")
     set_seed(seed)
@@ -63,7 +63,7 @@ def main():
     logging.info('Standardizing datasets.')
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False)
     x_mean, x_std, y_mean, y_std = compute_mean_std(train_dataloader)
-    print(x_mean, x_std, y_mean, y_std)
+    x_mean, x_std, y_mean, y_std = None, None, None, None
     train_dataset = StandardizeDataset(base_dataset=train_dataset,
                                        mean_input=x_mean, std_input=x_std,
                                        mean_target=y_mean, std_target=y_std)
@@ -89,7 +89,6 @@ def main():
     optimizer = setup_optimizer(model=model, lr=lr, weight_decay=weight_decay)
     trainer = TrainPhysicsModel(model=model, optimizer=optimizer, criterion=criterion,
                             develop_dataloader=develop_dataloader)
-
 
     logging.info(f'Fitting model for {task_name}.')
     trainer.early_stopping(train_dataloader=train_dataloader, val_dataloader=val_dataloader,

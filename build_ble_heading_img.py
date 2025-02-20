@@ -1,8 +1,8 @@
 import pandas as pd
 import numpy as np
 from data_storage.Dataset_AoA_RSS_BLE51.data_utils import load_raw_dataset, load_gt_dataset, load_grid_dataset, create_anchors_dataset
-from Pinnoloc.dataset.ble_dataset import BLEDatasetDistance
-from Pinnoloc.utils.split_data import random_split_dataset
+from Pinnoloc.dataset.ble_dataset import BLEDatasetHeadingIMG
+from Pinnoloc.utils.split_data import stratified_split_dataset
 from Pinnoloc.utils.saving import save_data
 import logging
 import os
@@ -68,68 +68,107 @@ def preprocess_df(df):
     df['Anchor_x'] = df['Anchor_x'] / 100
     df['Anchor_y'] = df['Anchor_y'] / 100
 
-    # Convert angles to radians
-    df['AoA_Az'] = np.radians(df['AoA_Az'])
-    df['AoA_El'] = np.radians(df['AoA_El'])
-    df['Az_Arrival'] = np.radians(df['Az_Arrival'])
-    df['El_Arrival'] = np.radians(df['El_Arrival'])
-
     # Compute the euclidean distance between the anchor (Anchor_x, Anchor_y) and the tag (X, Y) coordinates
     df['Distance'] = ((df['X'] - df['Anchor_x'])**2 + (df['Y'] - df['Anchor_y'])**2)**0.5
 
     # Compute the angle of departure (Azimuth) from the tag (X, Y) to the anchor (Anchor_x, Anchor_y)
     df['Az_Departure'] = np.arctan2(df['Anchor_y'] - df['Y'], df['Anchor_x'] - df['X'])
 
+    # Convert angles to radians
+    df['AoA_Az'] = np.radians(df['AoA_Az'])
+    df['AoA_El'] = np.radians(df['AoA_El'])
+    df['Az_Arrival'] = np.radians(df['Az_Arrival'])
+    df['El_Arrival'] = np.radians(df['El_Arrival'])
+
+    df = df[['Epoch_Time', 'RSS_1st_Pol',
+       'RSS_2nd_Pol', 'Anchor_ID', 'Distance', 'X',
+       'Y', 'Heading']]
+    
+    df = df.groupby(['X', 'Y', 'Heading', 'Anchor_ID']).agg({
+        'RSS_1st_Pol': 'mean',
+        'RSS_2nd_Pol': 'mean',
+        'Distance': 'mean'
+    }).reset_index()
+
+    # rename columns
+    df = df.rename(columns={
+        'X': 'key/X',
+        'Y': 'key/Y',
+        'Heading': 'key/Heading',
+        'RSS_1st_Pol': 'feature/RSS_1st_Pol',
+        'RSS_2nd_Pol': 'feature/RSS_2nd_Pol'
+    })
+    df['target/Heading'] = df['key/Heading']
+
+    # df_grouped = df.groupby(['X', 'Y', 'Heading'])
+    # keys = list(df_grouped.groups.keys())
+    # print(keys)
+    # for key in keys:
+    #     print('Prova')
+    #     print(key)
+    #     group = df_grouped.get_group(key)
+    #     group = group.sort_values('Anchor_ID')
+    #     print(group)
+    #     # group = group.groupby('Anchor_ID').agg({
+    #     #     'RSS_1st_Pol': 'mean',
+    #     #     'RSS_2nd_Pol': 'mean',
+    #     #     'Distance': 'mean'
+    #     # }).reset_index()
+    #     # print(group)
+
     # df[df['Heading'] == 0]['Az_Departure'] = - df[df['Heading'] == 0]['Az_Departure']  # East
     # df[df['Heading'] == 1]['Az_Departure'] = (np.pi / 2) - df[df['Heading'] == 1]['Az_Departure']  # North
     # df[df['Heading'] == 2]['Az_Departure'] = - (np.pi / 2) - df[df['Heading'] == 2]['Az_Departure']  # South
     # df[df['Heading'] == 3]['Az_Departure'] = np.pi - df[df['Heading'] == 3]['Az_Departure']  # West
 
-    print(df.columns)
-    
-    # Take only the Channel = 37 with the 2nd polarization
-    df = df[df['Channel'] == 37]
-    # Take only the Anchor_ID = 6501
-    df = df[df['Anchor_ID'] == 6501]
+    # df = df[['Epoch_Time', 'RSS_1st_Pol', 'AoA_Az', 'AoA_El',
+    #    'RSS_2nd_Pol', 'Channel', 'Anchor_ID', 'X',
+    #    'Y', 'Distance', 'Az_Arrival', 'El_Arrival', 'Az_Departure', 'Heading']]
 
-    # Set RSS_1m as the reference RSS value and the path-loss value for each Anchor_ID
-    # Anchor_ID 6501: (RSS_1m = -58.10682936089764, alpha = 1.4589097985754986)
-    # Anchor_ID 6502: (RSS_1m = -59.1429209008935, alpha = 2.055682881628363)
-    # Anchor_ID 6503: (RSS_1m = -58.00410788271862, alpha = 1.462165416607945)
-    # Anchor_ID 6504: (RSS_1m = -58.28560404488733, alpha = 1.556561011399692)
-    # df['RSS_1m'] = 0.0
-    # df['alpha'] = 0.0
-    # df.loc[df['Anchor_ID'] == 6501, 'RSS_1m'] = -58.10682936089764
-    # df.loc[df['Anchor_ID'] == 6501, 'alpha'] = 1.4589097985754986
-    # df.loc[df['Anchor_ID'] == 6502, 'RSS_1m'] = -59.1429209008935
-    # df.loc[df['Anchor_ID'] == 6502, 'alpha'] = 2.055682881628363
-    # df.loc[df['Anchor_ID'] == 6503, 'RSS_1m'] = -58.00410788271862
-    # df.loc[df['Anchor_ID'] == 6503, 'alpha'] = 1.462165416607945
-    # df.loc[df['Anchor_ID'] == 6504, 'RSS_1m'] = -58.28560404488733
-    # df.loc[df['Anchor_ID'] == 6504, 'alpha'] = 1.556561011399692
+    # # Group by X, Y, Anchor_Id, Label
+    # df = df.groupby(['X', 'Y', 'Anchor_ID', 'Heading']).agg({
+    #     'RSS_1st_Pol': 'mean',
+    #     'RSS_2nd_Pol': 'mean',
+    #     'AoA_Az': 'mean',
+    #     'AoA_El': 'mean',
+    #     'Distance': 'mean',
+    #     'Az_Arrival': 'mean',
+    #     'El_Arrival': 'mean',
+    #     'Az_Departure': 'mean'
+    # }).reset_index()
 
-    # Standardize the RSS_1st_Pol, AoA_Az, AoA_El, RSS_2nd_Pol columns respectively
+    # print(df.head())
+
+    # # df = df.pivot(index=['X', 'Y', 'Heading'], columns='Anchor_ID', values=['RSS_1st_Pol', 'RSS_2nd_Pol', 'Distance'])
+
+    # # print(df)
+    # # import torch
+    # # print(torch.tensor(df[['RSS_1st_Pol', 'RSS_2nd_Pol']].values, dtype=torch.float32).reshape(-1, 2, 4))
+    # # print(torch.tensor(df['Distance'].values, dtype=torch.float32))
+
+    # # Standardize the RSS_1st_Pol, AoA_Az, AoA_El, RSS_2nd_Pol columns respectively
     # df['feature/RSS_1st_Pol'] = (df['RSS_1st_Pol'] - df['RSS_1st_Pol'].mean()) / df['RSS_1st_Pol'].std()
     # df['feature/RSS_2nd_Pol'] = (df['RSS_2nd_Pol'] - df['RSS_2nd_Pol'].mean()) / df['RSS_2nd_Pol'].std()
-    #df['feature/RSS'] = (df['RSS_2nd_Pol'] - df['RSS_2nd_Pol'].mean()) / df['RSS_2nd_Pol'].std()
-    df['feature/RSS'] = df['RSS_2nd_Pol']
-    # cos and sin of the azimuth angle
+    # # cos and sin of the azimuth angle
     # df['feature/AoA_Az_x'] = df['AoA_Az'].apply(lambda x: np.cos(x))
     # df['feature/AoA_Az_y'] = df['AoA_Az'].apply(lambda x: np.sin(x))
     # # cos and sin of the elevation angle
     # df['feature/AoA_El_x'] = df['AoA_El'].apply(lambda x: np.cos(x))
     # df['feature/AoA_El_y'] = df['AoA_El'].apply(lambda x: np.sin(x))
-    # df['feature/Distance'] = df['Distance']
-    # df['feature/Az_Departure'] = df['Az_Departure']
 
-    # df['target/Distance'] = (df['Distance'] - df['Distance'].mean()) / df['Distance'].std()
-    df['target/Distance'] = df['Distance']
+    # # df['feature/Distance'] = df['Distance']
+    # # df['feature/Az_Departure'] = df['Az_Departure']
 
-    # df['physics/Distance_std'] = df['Distance'].std()
-    # df['physics/RSS_std'] = df['RSS_2nd_Pol'].std()
-    # df['physics/RSS'] = df['RSS_2nd_Pol']
-    # df['physics/RSS_1m'] = df['RSS_1m']
-    # df['physics/alpha'] = df['alpha']
+    # df['physics/Distance'] = df['Distance']
+    # df['physics/Az_Departure'] = df['Az_Departure']
+    # # df['physics/Az_Departure_x'] = df['Az_Departure'].apply(lambda x: np.cos(x))
+    # # df['physics/Az_Departure_y'] = df['Az_Departure'].apply(lambda x: np.sin(x))
+    # df['physics/RSS_1st_Pol'] = df['RSS_1st_Pol']
+    # df['physics/RSS_2nd_Pol'] = df['RSS_2nd_Pol']
+
+    # df = df.pivot(index=['X', 'Y', 'Heading'],
+    #               columns='Anchor_ID',
+    #               values=['feature/RSS_1st_Pol', 'feature/RSS_2nd_Pol', 'physics/Distance'])
 
     return df
 
@@ -137,27 +176,26 @@ def preprocess_df(df):
 def main():
     logging.basicConfig(level=logging.INFO)
 
-    task_name = 'ble_distance'
+    task_name = 'ble_heading_img'
 
     df = create_df()
-    print(df)
+    print(df.head())
     df = preprocess_df(df)
-    print(df)
+    print(df.head())
 
-    feature_columns = [col for col in df.columns if col.startswith('feature/')]
-    target_column = [col for col in df.columns if col.startswith('target/')]
-    physics_columns = [col for col in df.columns if col.startswith('physics/')]
-    dataset = BLEDatasetDistance(
-        df,
-        feature_columns=feature_columns,
-        target_column=target_column,
-        physics_columns=physics_columns
+    print(df.columns)
+
+    dataset = BLEDatasetHeadingIMG(
+        dataframe=df,
+        key_columns=[col for col in df.columns if col.startswith('key/')],
+        feature_columns=[col for col in df.columns if col.startswith('feature/')],
+        target_column=[col for col in df.columns if col.startswith('target/')],
+        physics_columns=[col for col in df.columns if col.startswith('physics/')]
         )
-    
-    print('(', feature_columns, '), ', '(', target_column, '), ', '(', physics_columns, ')')
     print(dataset[0])
+    print(dataset[0][0].shape)
 
-    develop_dataset, test_dataset = random_split_dataset(dataset, val_split=0.2)
+    develop_dataset, test_dataset = stratified_split_dataset(dataset, val_split=0.2)
 
     logging.info('Saving datasets')
     save_data(develop_dataset, os.path.join('datasets', task_name, 'develop_dataset'))

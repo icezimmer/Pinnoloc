@@ -10,6 +10,7 @@ import argparse
 def parse_args():
     # Create the parser
     parser = argparse.ArgumentParser(description='Path Loss Exponent Estimation')
+    parser.add_argument('--heading', type=str, help='The cardinal direction', required=True, choices=['east', 'north', 'south', 'west'])
     parser.add_argument('--anchor', type=int, help='The ID of the anchor node', required=True, choices=[6501, 6502, 6503, 6504])
     parser.add_argument('--channel', type=int, help='The BLE channel', required=True, choices=[37, 38, 39])
     parser.add_argument('--polarization', type=str, help='The BLE polarization', required=True, choices=['1st', '2nd'])
@@ -18,20 +19,27 @@ def parse_args():
 
 
 def main():
-    # Load the calibration dataset
-    calibration_file_path = "data_storage/Dataset_AoA_RSS_BLE51/calibration/beacons/beacons_calibration.txt"
-    calibration_df = load_raw_dataset(calibration_file_path)
-    print("\nCalibration Data:")
-    print(calibration_df)
+    # Take the arguments from the command line
+    args = parse_args()
+    heading = args.heading
+    anchor = args.anchor
+    channel = args.channel
+    polarization = args.polarization
 
-    # Load the ground truth dataset for calibration
-    gt_calibration_file_path = "data_storage/Dataset_AoA_RSS_BLE51/calibration/gt/gt_calibration.txt"
-    gt_calibration_df = load_gt_dataset(gt_calibration_file_path)
+    # Load the static dataset
+    static_file_path = f"data_storage/Dataset_AoA_RSS_BLE51/static/beacons/beacons_static_{heading}.txt"
+    static_df = load_raw_dataset(static_file_path)
+    print(f"\nStatic Data with {heading} heading:")
+    print(static_df)
+
+    # Load the ground truth dataset for static
+    gt_static_file_path = f"data_storage/Dataset_AoA_RSS_BLE51/static/gt/gt_static_{heading}.txt"
+    gt_static_df = load_gt_dataset(gt_static_file_path)
     # cm to m
-    gt_calibration_df['X'] = gt_calibration_df['X'] / 100
-    gt_calibration_df['Y'] = gt_calibration_df['Y'] / 100
-    print("\nGround Truth Calibration Data:")
-    print(gt_calibration_df)
+    gt_static_df['X'] = gt_static_df['X'] / 100
+    gt_static_df['Y'] = gt_static_df['Y'] / 100
+    print("\nGround Truth Static Data:")
+    print(gt_static_df)
 
     # Create a dataset with the anchor nodes' information
     anchors_df = create_anchors_dataset()
@@ -41,20 +49,14 @@ def main():
     print("\nAnchors Data:")
     print(anchors_df)
 
-    # Take the arguments from the command line
-    args = parse_args()
-    anchor = args.anchor
-    channel = args.channel
-    polarization = args.polarization
+    # Filter static data
+    static_df_filtered = static_df[static_df['Anchor_ID'] == anchor].reset_index(drop=True)
+    print(f"Static Data for {anchor}:")
+    print(static_df_filtered)
 
-    # Filter calibration data
-    calibration_df_filtered = calibration_df[calibration_df['Anchor_ID'] == anchor].reset_index(drop=True)
-    print(f"Calibration Data for {anchor}:")
-    print(calibration_df_filtered)
-
-    # Plot the Ground Truth Calibration Points and Anchors
+    # Plot the Ground Truth Static Points and Anchors
     plt.figure(num=1)
-    plt.scatter(gt_calibration_df['X'], gt_calibration_df['Y'], c='blue', marker='o', label='GT Points')
+    plt.scatter(gt_static_df['X'], gt_static_df['Y'], c='blue', marker='o', label='GT Points')
     plt.scatter(anchors_df['Anchor_x'], anchors_df['Anchor_y'], c='red', marker='o', s=100, label='Anchors')
     # Annotating points with labels
     for i, label in enumerate(anchors_df['Anchor_ID']):
@@ -65,23 +67,23 @@ def main():
     plt.ylim(-2, 8)
     plt.xlabel('X')
     plt.ylabel('Y')
-    plt.title('Ground Truth Calibration Points')
+    plt.title('Ground Truth Static Points')
     plt.grid(True)
     plt.legend()
     plt.show()
 
     # Create an IntervalIndex from the start/end times
-    intervals = pd.IntervalIndex.from_arrays(gt_calibration_df['Start_Time'], gt_calibration_df['End_Time'], closed='both')  
+    intervals = pd.IntervalIndex.from_arrays(gt_static_df['Start_Time'], gt_static_df['End_Time'], closed='both')  
     # For each RSS timestamp, find which interval it falls into
-    interval_positions = intervals.get_indexer(calibration_df_filtered['Epoch_Time'])
-    calibration_df_filtered['GT_ID'] = interval_positions
-    calibration_df_filtered = calibration_df_filtered[calibration_df_filtered['GT_ID'] != -1]
-    calibration_df_filtered = calibration_df_filtered.reset_index(drop=True)
-    print(f"\nCalibration Data for {anchor} with GT_ID:")
-    print(calibration_df_filtered)
+    interval_positions = intervals.get_indexer(static_df_filtered['Epoch_Time'])
+    static_df_filtered['GT_ID'] = interval_positions
+    static_df_filtered = static_df_filtered[static_df_filtered['GT_ID'] != -1]
+    static_df_filtered = static_df_filtered.reset_index(drop=True)
+    print(f"\nStatic Data for {anchor} with GT_ID:")
+    print(static_df_filtered)
 
     # The best is the Channel = 37 with the 2nd polarization
-    rss_df = calibration_df_filtered[calibration_df_filtered['Channel'] == channel]
+    rss_df = static_df_filtered[static_df_filtered['Channel'] == channel]
     rss_df = rss_df[[f'RSS_{polarization}_Pol', 'GT_ID']]
     rss_df = rss_df.rename(columns={f'RSS_{polarization}_Pol': 'RSS'})
     # Drop the RSS values that have Z scores greater than 2
@@ -94,23 +96,23 @@ def main():
     anchors_df_filtered = anchors_df[anchors_df['Anchor_ID'] == anchor].reset_index(drop=True)
     # Extract the points as Nx2 and Mx2 arrays
     anchors_points = anchors_df_filtered[['Anchor_x', 'Anchor_y']].values  # Shape (M, 2)
-    gt_points = gt_calibration_df[['X','Y']].values  # Shape (N, 2)
+    gt_points = gt_static_df[['X','Y']].values  # Shape (N, 2)
     # Compute the distance matrix between each pair of points in the anchors dataset and the ground truth dataset
     distance_matrix = cdist(anchors_points, gt_points, metric='euclidean')
-    # Set new columns in gt_calibration_df with the distances to each anchor
+    # Set new columns in gt_static_df with the distances to each anchor
     for i in range(distance_matrix.shape[0]):
-        gt_calibration_df[f"Distance_to_{anchors_df_filtered['Anchor_ID'][i]}"] = distance_matrix[i, :]
-    # Print a preview of the ground truth dataset for calibration with the distances to each anchor
-    print("\nGround Truth Calibration Data with Distances:")
-    print(gt_calibration_df)
+        gt_static_df[f"Distance_to_{anchors_df_filtered['Anchor_ID'][i]}"] = distance_matrix[i, :]
+    # Print a preview of the ground truth dataset for static with the distances to each anchor
+    print("\nGround Truth Static Data with Distances:")
+    print(gt_static_df)
 
-    # Merge the RSS data with the ground truth calibration data
-    cal_df = gt_calibration_df.merge(rss_df, left_index=True, right_on='GT_ID')
+    # Merge the RSS data with the ground truth static data
+    cal_df = gt_static_df.merge(rss_df, left_index=True, right_on='GT_ID')
     cal_df = cal_df[['GT_ID', f'Distance_to_{anchor}', 'Mean_RSS', 'RSS_List']]
-    # Sort the calibration data by distance to the anchor
+    # Sort the static data by distance to the anchor
     cal_df = cal_df.sort_values(by=f'Distance_to_{anchor}')
     cal_df = cal_df.reset_index(drop=True)
-    print("\nGround Truth Calibration Data with Distances sorted and RSS:")
+    print("\nGround Truth Static Data with Distances sorted and RSS:")
     print(cal_df)
 
     # Take the logarithm (base 10) of the distances
@@ -141,7 +143,7 @@ def main():
     plt.plot(exp10_X, model.predict(X), color='black', label='Log10 Regression Model')
     plt.xlabel('Distance')
     plt.ylabel('RSS')
-    plt.title(f'Anchor:{anchor}, Channel:{channel}, Polarization:{polarization}')
+    plt.title(f'Anchor:{anchor}, Heading:{heading}, Channel:{channel}, Polarization:{polarization}')
     plt.grid(True)
     plt.legend()
     plt.show()

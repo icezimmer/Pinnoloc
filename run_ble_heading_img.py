@@ -5,7 +5,7 @@ from Pinnoloc.utils.experiments import set_seed
 from torch.utils.data import DataLoader
 from Pinnoloc.utils.split_data import random_split_dataset
 from Pinnoloc.utils.printing import print_num_trainable_params, print_parameters
-from Pinnoloc.models.vector import StackedVectorModel, DistanceModel
+from Pinnoloc.models.image import StackedImageModel
 from Pinnoloc.ml.optimization import setup_optimizer
 from Pinnoloc.ml.loss import DistanceLoss
 from Pinnoloc.ml.training import TrainPhysicsModel
@@ -25,9 +25,11 @@ def main():
 
     seed = 42
     device = 'cpu'
-    n_layers = 4
-    d_input = 1
-    hidden_units = [256]
+    n_layers = 2
+    input_height = 4
+    input_width = 2
+    input_channels = 1
+    filters = [32, 64]
     d_output = 1
     batch_size = 256
     lr = 0.1
@@ -50,7 +52,8 @@ def main():
         logging.error(f"Dataset not found for {task_name}. Run build.py first.")
 
     logging.info(f'Initializing model.')
-    model = DistanceModel(n_layers=n_layers, d_input=d_input, hidden_units=hidden_units, d_output=d_output)
+    model = StackedImageModel(n_layers=n_layers, input_height=input_height, input_width=input_width,
+                              input_channels=input_channels, filters=filters, d_output=d_output)
 
     # print_num_trainable_params(model)
 

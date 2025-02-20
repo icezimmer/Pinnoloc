@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 from data_storage.Dataset_AoA_RSS_BLE51.data_utils import load_raw_dataset, load_gt_dataset, load_grid_dataset, create_anchors_dataset
-from Pinnoloc.torch_dataset.ble_dataset import BLEDatasetHeading
+from Pinnoloc.dataset.ble_dataset import BLEDatasetHeading
 from Pinnoloc.utils.split_data import stratified_split_dataset
 from Pinnoloc.utils.saving import save_data
 import logging
@@ -65,8 +65,8 @@ def preprocess_df(df):
     # Convert cm distances to meters
     df['X'] = df['X'] / 100
     df['Y'] = df['Y'] / 100
-    df['Pos_x'] = df['Pos_x'] / 100
-    df['Pos_y'] = df['Pos_y'] / 100
+    df['Anchor_x'] = df['Anchor_x'] / 100
+    df['Anchor_y'] = df['Anchor_y'] / 100
 
     # Convert angles to radians
     df['AoA_Az'] = np.radians(df['AoA_Az'])
@@ -75,10 +75,10 @@ def preprocess_df(df):
     df['El_Arrival'] = np.radians(df['El_Arrival'])
 
     # Compute the euclidean distance between the anchor (Pos_x, Pos_y) and the tag (X, Y) coordinates
-    df['Distance'] = ((df['X'] - df['Pos_x'])**2 + (df['Y'] - df['Pos_y'])**2)**0.5
+    df['Distance'] = ((df['X'] - df['Anchor_x'])**2 + (df['Y'] - df['Anchor_y'])**2)**0.5
 
     # Compute the angle of departure (Azimuth) from the tag (X, Y) to the anchor (Pos_x, Pos_y)
-    df['Az_Departure'] = np.arctan2(df['Pos_y'] - df['Y'], df['Pos_x'] - df['X'])
+    df['Az_Departure'] = np.arctan2(df['Anchor_y'] - df['Y'], df['Anchor_x'] - df['X'])
 
     # df[df['Heading'] == 0]['Az_Departure'] = - df[df['Heading'] == 0]['Az_Departure']  # East
     # df[df['Heading'] == 1]['Az_Departure'] = (np.pi / 2) - df[df['Heading'] == 1]['Az_Departure']  # North

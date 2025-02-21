@@ -25,7 +25,7 @@ def main():
 
     seed = 42
     device = 'cpu'
-    n_layers = 4
+    n_layers = 2
     d_input = 1
     hidden_units = [256]
     d_output = 1
@@ -37,7 +37,7 @@ def main():
     reduce_plateau = 0.1
     num_epochs = 100
     lambda_data = 1.0
-    lambda_physics = 0.0
+    lambda_physics = 10.0
 
     logging.info(f"Setting seed: {seed}")
     set_seed(seed)

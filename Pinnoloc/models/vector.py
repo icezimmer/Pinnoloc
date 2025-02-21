@@ -49,4 +49,3 @@ class DistanceModel(StackedVectorModel):
         super(DistanceModel, self).__init__(n_layers, d_input, hidden_units, d_output, activation, use_batchnorm, dropout_rate)
 
         self.path_loss = nn.Parameter(torch.ones(d_input), requires_grad=True)
-        # self.path_loss = torch.tensor([2.0])

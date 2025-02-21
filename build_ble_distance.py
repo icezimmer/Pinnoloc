@@ -6,6 +6,7 @@ from Pinnoloc.utils.split_data import random_split_dataset
 from Pinnoloc.utils.saving import save_data
 import logging
 import os
+from scipy import stats
 
 
 # Create dictionary with the cardinal directions and the corresponding labels
@@ -91,6 +92,13 @@ def preprocess_df(df):
     df = df[df['Channel'] == 37]
     # Take only the Anchor_ID = 6501
     df = df[df['Anchor_ID'] == 6501]
+
+    # For each Distance take the Z score of RSS_2nd_Pol less than 2
+    df['zscore'] = df.groupby('Distance')['RSS_2nd_Pol'].transform(lambda x: stats.zscore(x))
+
+    # 3. Filter to keep rows with |zscore| < 2
+    df = df[df['zscore'].abs() < 2]
+
 
     # Set RSS_1m as the reference RSS value and the path-loss value for each Anchor_ID
     # Anchor_ID 6501: (RSS_1m = -58.10682936089764, alpha = 1.4589097985754986)

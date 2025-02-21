@@ -352,21 +352,22 @@ class DistanceLoss(torch.nn.Module):
     def plot(self, model, input, target, physics_data=None):
         # Collocation points for the physics loss representing RSSI with normal distribution
         P_collocation = self.collocation_points(device=input.device, requires_grad=False)
-        # x_pred_collocation = model(P_collocation)
-        # dx_dP = torch.autograd.grad(
-        #     outputs=x_pred_collocation,
-        #     inputs=P_collocation,
-        #     grad_outputs=torch.ones_like(x_pred_collocation),  # dLoss/dx = 1, dLoss/dP = dLoss/dx * dx/dP
-        #     create_graph=False
-        # )[0]
-        # approx = - torch.einsum('f,bf->bf', model.path_loss, x_pred_collocation)
-        # Scatter plot
         import matplotlib.pyplot as plt
-        plt.scatter(P_collocation.cpu().detach().numpy(), model(P_collocation).cpu().detach().numpy(), label='Predicted Collocation')
-        plt.scatter(input.cpu().detach().numpy(), target.cpu().detach().numpy(), label='True Data')
-        plt.scatter(input.cpu().detach().numpy(), model(input).cpu().detach().numpy(), label='Predicted Data')
-        # plt.scatter(P_collocation.cpu().detach().numpy(), dx_dP.cpu().detach().numpy(), label='dx_dP')
-        # plt.scatter(P_collocation.cpu().detach().numpy(), approx.cpu().detach().numpy(), label='-alpha * x')
+        P_collocation = P_collocation.cpu().detach()
+        path_loss = model.path_loss.cpu().detach()
+        input = input.cpu().detach()
+        target = target.cpu().detach()
+
+        exponent = - torch.einsum('f,bf->bf', path_loss, P_collocation).cpu().detach()
+        solution = torch.exp(exponent).cpu().detach()
+
+        collocation_pred = model(P_collocation).cpu().detach()
+        pred = model(input).cpu().detach()
+
+        plt.scatter(P_collocation.numpy(), solution.numpy(), label='Equation')
+        plt.scatter(P_collocation.numpy(), collocation_pred.numpy(), label='Predicted Collocation')
+        plt.scatter(input.numpy(), target.numpy(), label='True Data')
+        plt.scatter(input.numpy(), pred.numpy(), label='Predicted Data')
         plt.xlabel('RSSI P (dBm)')
         plt.ylabel('Distance x (m)')
         plt.legend()
@@ -376,7 +377,7 @@ class DistanceLoss(torch.nn.Module):
     def collocation_points(device, requires_grad=True):
         # Collocation points for the physics loss representing RSSI with normal distribution
         # P_collocation = torch.randn(1000, 1, device=device, requires_grad=requires_grad)
-        P_collocation = torch.linspace(-120, -10, 1000, device=device, requires_grad=requires_grad).view(-1, 1)
+        P_collocation = torch.linspace(-3, 3, 1000, device=device, requires_grad=requires_grad).view(-1, 1)
         return P_collocation
 
     def forward(self, model, input, target, physics_data=None):
@@ -419,7 +420,15 @@ class DistanceLoss(torch.nn.Module):
             # # print all the shapes
             # print(f"dx_dP: {dx_dP.shape}, x_pred_collocation: {x_pred_collocation.shape}, residual: {residual.shape}, alpha: {alpha.shape}")
 
-            physics_loss = torch.mean(residual**2)
+            physics_loss = torch.mean(torch.pow(residual, 2))
+
+            # P0 = torch.tensor(-50.0, device=input.device).view(-1,1)
+            # x0 = torch.tensor(1.0, device=input.device).view(-1,1)
+
+            # ic_loss = self.data_loss_fn(model(P0), x0)
+
+        
+            # print(f"Data loss: {data_loss.item()}, Physics loss: {physics_loss.item()}, IC loss: {ic_loss.item()}")
 
             # Initial condition: x(P0) = x0 > 0, i.e. x(-50) = 1
             # P0 = (torch.tensor(-50.0, device=input.device).view(-1,1) - self.mean_input) / self.std_input
@@ -428,7 +437,7 @@ class DistanceLoss(torch.nn.Module):
             # physics_loss += (x0_pred - x0)**2
 
             # Compute total loss
-            total_loss = self.lambda_data * data_loss + self.lambda_physics * physics_loss
+            total_loss = self.lambda_data * data_loss + self.lambda_physics * physics_loss # + 100 * ic_loss
             # print(f"Data loss: {data_loss.item()}, Physics loss: {physics_loss.item()}")
         
         return total_loss

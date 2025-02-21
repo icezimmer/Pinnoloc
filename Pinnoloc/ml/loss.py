@@ -349,95 +349,95 @@ class DistanceLoss(torch.nn.Module):
         self.mean_target = mean_target
         self.std_target = std_target
 
-    def plot(self, model, input, target, physics_data=None):
-        # Collocation points for the physics loss representing RSSI with normal distribution
-        P_collocation = self.collocation_points(device=input.device, requires_grad=False)
-        import matplotlib.pyplot as plt
-        P_collocation = P_collocation.cpu().detach()
-        path_loss = model.path_loss.cpu().detach()
-        input = input.cpu().detach()
-        target = target.cpu().detach()
-
-        exponent = - torch.einsum('f,bf->bf', path_loss, P_collocation).cpu().detach()
-        solution = torch.exp(exponent).cpu().detach()
-
-        collocation_pred = model(P_collocation).cpu().detach()
-        pred = model(input).cpu().detach()
-
-        plt.scatter(P_collocation.numpy(), solution.numpy(), label='Equation')
-        plt.scatter(P_collocation.numpy(), collocation_pred.numpy(), label='Predicted Collocation')
-        plt.scatter(input.numpy(), target.numpy(), label='True Data')
-        plt.scatter(input.numpy(), pred.numpy(), label='Predicted Data')
-        plt.xlabel('RSSI P (dBm)')
-        plt.ylabel('Distance x (m)')
-        plt.legend()
-        plt.show()
-
     @staticmethod
-    def collocation_points(device, requires_grad=True):
+    def collocation_points(device, n_features, requires_grad=True):
         # Collocation points for the physics loss representing RSSI with normal distribution
-        # P_collocation = torch.randn(1000, 1, device=device, requires_grad=requires_grad)
-        P_collocation = torch.linspace(-3, 3, 1000, device=device, requires_grad=requires_grad).view(-1, 1)
-        return P_collocation
+        # P_collocation = torch.linspace(-3, 3, 1000, device=device, requires_grad=requires_grad).view(-1, 1)
+        P_collocation = torch.randn(10000, 1, device=device, requires_grad=requires_grad)
+        a_collocation = torch.randn(10000, n_features - 1, device=device, requires_grad=False)
+        collocation = torch.cat((P_collocation, a_collocation), dim=1)
+        return P_collocation, collocation
+    
+    @staticmethod
+    def collocation_boundary_points(device, n_features):
+        # Collocation points for the physics loss representing RSSI with normal distribution
+        P0 = torch.zeros(10000, 1, device=device, requires_grad=False)
+        a_collocation = torch.randn(10000, n_features - 1, device=device, requires_grad=False)
+        boundary_collocation = torch.cat((P0, a_collocation), dim=1)
+        return boundary_collocation
 
-    def forward(self, model, input, target, physics_data=None):
+    def forward(self, model, inputs, targets, physics_data=None):
         if self.lambda_physics == 0:
-            output = model(input)
-            total_loss = self.data_loss_fn(output, target)
+            output = model(inputs)
+            total_loss = self.data_loss_fn(output, targets)
         
         else:
-            output = model(input)
-            data_loss = self.data_loss_fn(output, target)  # Data prediction loss
-
-            # Collocation points for the physics loss representing RSSI with uniform distribution
-            # P_collocation = torch.linspace(-3, 3, 1000, device=input.device, requires_grad=True).view(-1, 1)
+            output = model(inputs)
+            data_loss = self.data_loss_fn(output, targets)  # Data prediction loss
 
             # Collocation points for the physics loss representing RSSI with normal distribution
-            P_collocation = self.collocation_points(device=input.device, requires_grad=True)
+            P_collocation, collocation = self.collocation_points(device=inputs.device, n_features=inputs.shape[-1], requires_grad=True)
             
-            # Physics loss: enforce the differential equation
-            # Compute the derivative dx/dP using autograd,
-            # where x represents the distance and P the RSSI in dBm
-            x_pred_collocation = model(P_collocation)
-            dx_dP = torch.autograd.grad(
-                outputs=x_pred_collocation,
+            # Physics loss: enforce the differential equation dz/dP = -k * z
+            # Compute the derivative dz/dP using autograd,
+            # where z represents the distance and P the RSSI in dBm
+            z_collocation = model(collocation)
+            dz_dP = torch.autograd.grad(
+                outputs=z_collocation,
                 inputs=P_collocation,
-                grad_outputs=torch.ones_like(x_pred_collocation),  # dLoss/dx = 1, dLoss/dP = dLoss/dx * dx/dP
+                grad_outputs=torch.ones_like(z_collocation),  # dLoss/dz = 1, dLoss/dP = dLoss/dz * dz/dP
                 create_graph=True
             )[0]
             
-            # Differential equation: dx/dP + (ln(10)/(10*alpha)) * x = 0 if data not standardized
-            # x = sigma_x * x* + mu_x, P = sigma_P * P* + mu_P, x* standardized distance, P* standardized RSSI
-            # dx/dP = d(sigma_x * x* + mu_x) / d(sigma_P * P* + mu_P) = (sigma_x / sigma_P) * dx*/dP*
+            # Differential equation: dz/dP + (ln(10)/(10*alpha)) * z = 0 if data not standardized
+            # z = sigma_z * z* + mu_z, P = sigma_P * P* + mu_P, z* standardized distance, P* standardized RSSI
+            # dz/dP = d(sigma_z * z* + mu_z) / d(sigma_P * P* + mu_P) = (sigma_z / sigma_P) * dz*/dP*
             # alpha = physics_data[0, 0]
-            # x_pred_collocation = self.std_target * x_pred_collocation + self.mean_target
-            # dx_dP = (self.std_target / self.std_input) * dx_dP
+            # z_collocation = self.std_target * z_collocation + self.mean_target
+            # dz_dP = (self.std_target / self.std_input) * dz_dP
             # k = torch.log(torch.tensor(10.0)) / (10 * model.alpha)
-            # residual = dx_dP + k * x_pred_collocation
-
-            residual = dx_dP + torch.einsum('f,bf->bf', model.path_loss, x_pred_collocation)
-
-            # # print all the shapes
-            # print(f"dx_dP: {dx_dP.shape}, x_pred_collocation: {x_pred_collocation.shape}, residual: {residual.shape}, alpha: {alpha.shape}")
-
+            # residual = dz_dP + k * z_pred_collocation
+            residual = dz_dP + torch.einsum('f,nf->nf', model.path_loss, z_collocation)
             physics_loss = torch.mean(torch.pow(residual, 2))
 
-            # P0 = torch.tensor(-50.0, device=input.device).view(-1,1)
-            # x0 = torch.tensor(1.0, device=input.device).view(-1,1)
+            # P0 = torch.tensor(-50.0, device=inputs.device).view(-1,1)
+            # z0 = torch.tensor(1.0, device=inputs.device).view(-1,1)
 
-            # ic_loss = self.data_loss_fn(model(P0), x0)
+            # ic_loss = self.data_loss_fn(model(P0), z0)
 
-        
+            boundary_collocation = self.collocation_boundary_points(device=inputs.device, n_features=inputs.shape[-1])
+            z_boundary_collocation = model(boundary_collocation)
+            target_boundary = model.boundary_condition * torch.empty_like(z_boundary_collocation).fill_(1.0)
+            boundary_loss = self.data_loss_fn(z_boundary_collocation, target_boundary)
+            
             # print(f"Data loss: {data_loss.item()}, Physics loss: {physics_loss.item()}, IC loss: {ic_loss.item()}")
 
-            # Initial condition: x(P0) = x0 > 0, i.e. x(-50) = 1
-            # P0 = (torch.tensor(-50.0, device=input.device).view(-1,1) - self.mean_input) / self.std_input
-            # x0 = (torch.tensor(1.0, device=input.device).view(-1,1) - self.mean_target) / self.std_target
-            # x0_pred = model(P0)
-            # physics_loss += (x0_pred - x0)**2
-
             # Compute total loss
-            total_loss = self.lambda_data * data_loss + self.lambda_physics * physics_loss # + 100 * ic_loss
+            total_loss = self.lambda_data * data_loss + self.lambda_physics * physics_loss + 100 * boundary_loss # + 100 * ic_loss
             # print(f"Data loss: {data_loss.item()}, Physics loss: {physics_loss.item()}")
         
         return total_loss
+    
+    def plot(self, model, inputs, targets, physics_data=None):
+        # Collocation points for the physics loss representing RSSI with normal distribution
+        P_collocation, _ = self.collocation_points(device=inputs.device, n_features=inputs.shape[-1], requires_grad=False)
+        import matplotlib.pyplot as plt
+        P_collocation = P_collocation.cpu().detach()
+        path_loss = model.path_loss.cpu().detach()
+        inputs = inputs.cpu().detach()
+        targets = targets.cpu().detach()
+
+        exponent = - torch.einsum('f,nf->nf', path_loss, P_collocation).cpu().detach()
+        solution = model.boundary_condition * torch.exp(exponent).cpu().detach()
+
+        z_collocation = model(P_collocation).cpu().detach()
+        preds = model(inputs).cpu().detach()
+
+        plt.scatter(P_collocation.numpy(), solution.numpy(), label='Equation')
+        plt.scatter(P_collocation.numpy(), z_collocation.numpy(), label='Predicted Collocation')
+        plt.scatter(inputs.numpy(), targets.numpy(), label='True Data')
+        plt.scatter(inputs.numpy(), preds.numpy(), label='Predicted Data')
+        plt.xlabel('RSSI P (dBm)')
+        plt.ylabel('Distance z (m)')
+        plt.legend()
+        plt.show()

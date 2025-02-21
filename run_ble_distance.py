@@ -26,9 +26,7 @@ def main():
     seed = 42
     device = 'cpu'
     n_layers = 2
-    d_input = 1
     hidden_units = [256]
-    d_output = 1
     batch_size = 256
     lr = 0.1
     weight_decay = 0.01
@@ -37,7 +35,7 @@ def main():
     reduce_plateau = 0.1
     num_epochs = 100
     lambda_data = 1.0
-    lambda_physics = 10.0
+    lambda_physics = 100.0
 
     logging.info(f"Setting seed: {seed}")
     set_seed(seed)
@@ -48,6 +46,8 @@ def main():
         test_dataset = load_data(os.path.join('datasets', task_name, 'test_dataset'))
     except FileNotFoundError:
         logging.error(f"Dataset not found for {task_name}. Run build.py first.")
+
+    d_input, d_output = develop_dataset[0][0].shape[0], develop_dataset[0][1].shape[0]
 
     logging.info(f'Initializing model.')
     model = DistanceModel(n_layers=n_layers, d_input=d_input, hidden_units=hidden_units, d_output=d_output)
@@ -105,6 +105,39 @@ def main():
     scores = {'test_mse': eval_test.mse}
 
     print(scores)
+
+    # scatter plot of y_true vs y_pred
+    from tqdm import tqdm
+    model.eval()
+    with torch.no_grad():
+        predictions = []
+        targets = []
+        
+        for item in tqdm(test_dataloader):
+            if len(item) == 3:
+                input_, target, _ = item  # Handle potential extra dataset info
+            else:
+                input_, target = item
+            
+            input_ = input_.to(device)
+            target = target.to(device)
+
+            output = model(input_)  # Model outputs continuous values (not logits)
+            predictions.append(output.flatten())  # Keep as 1D tensor
+            targets.append(target.flatten())  # Keep as 1D tensor
+
+        # Concatenate all tensors into one for proper calculations
+        predictions, targets = torch.cat(predictions), torch.cat(targets)
+        predictions = predictions * y_std + y_mean
+        targets = targets * y_std + y_mean
+
+    import matplotlib.pyplot as plt
+    plt.figure(num=1)
+    plt.scatter(targets, predictions, color='blue', marker='.', alpha=0.3)
+    plt.xlabel('True Distance')
+    plt.ylabel('Predicted Distance')
+    plt.title('True Distance vs Predicted Distance')
+    plt.show()
 
 
 if __name__ == "__main__":

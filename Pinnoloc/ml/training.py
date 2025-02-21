@@ -251,7 +251,7 @@ class TrainPhysicsModel:
 
             running_loss += loss.item()
 
-            # self.criterion.plot(self.model, input_, target, physics)
+            self.criterion.plot(self.model, input_, target, physics)
 
         return running_loss / len(dataloader)
 

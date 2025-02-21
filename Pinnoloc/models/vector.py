@@ -48,4 +48,6 @@ class DistanceModel(StackedVectorModel):
                  dropout_rate=0.0):
         super(DistanceModel, self).__init__(n_layers, d_input, hidden_units, d_output, activation, use_batchnorm, dropout_rate)
 
-        self.path_loss = nn.Parameter(torch.ones(d_input), requires_grad=True)
+        self.path_loss = nn.Parameter(torch.ones(d_output), requires_grad=True)
+        # self.boundary_condition = nn.Parameter(torch.tensor(0.5), requires_grad=True)
+        self.boundary_condition = 0.5

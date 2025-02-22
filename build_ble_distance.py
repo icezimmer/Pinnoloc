@@ -92,6 +92,7 @@ def preprocess_df(df):
     df = df[df['Channel'] == 37]
     # Take only the Anchor_ID = 6501
     df = df[df['Anchor_ID'] == 6501]
+    df = df[df['Heading'] == 2]
 
 
     # For each Distance take the Z score of RSS_2nd_Pol less than 2

@@ -15,6 +15,7 @@ def parse_args():
     parser.add_argument('--anchor', type=int, help='The ID of the anchor node', required=True, choices=[6501, 6502, 6503, 6504])
     parser.add_argument('--channel', type=int, help='The BLE channel', required=True, choices=[37, 38, 39])
     parser.add_argument('--polarization', type=str, help='The BLE polarization', required=True, choices=['1st', '2nd'])
+    parser.add_argument('--positional', action='store_true', help='Group the data by the (X, Y) coordinates instead of the distance')
 
     return parser.parse_args()
 
@@ -25,6 +26,7 @@ def main():
     anchor = args.anchor
     channel = args.channel
     polarization = args.polarization
+    positional = args.positional
 
     # Load the calibration dataset
     data_file_path = f"data_storage/Dataset_AoA_RSS_BLE51/calibration/beacons/beacons_calibration.txt"
@@ -59,16 +61,22 @@ def main():
     df = df[df['Anchor_ID'] == anchor]
     df = df.rename(columns={f'RSS_{polarization}_Pol': 'RSS'})
 
-    # Set an ID for each (X, Y) coordinate
-    df['ID'] = df.groupby(['X', 'Y']).ngroup()
-    # For each ID take the Z score of RSS_2nd_Pol less than 2
-    df['zscore'] = df.groupby('ID')['RSS'].transform(lambda x: stats.zscore(x))
-    df = df[df['zscore'].abs() < 2]
-    df['RSS_mean'] = df.groupby('ID')['RSS'].transform('mean')
-    # # For each Distance take the Z score of RSS_2nd_Pol less than 2
-    # df['zscore'] = df.groupby('Distance')['RSS'].transform(lambda x: stats.zscore(x))
-    # df = df[df['zscore'].abs() < 2]
-    # df['RSS_mean'] = df.groupby('Distance')['RSS'].transform('mean')
+    if args.positional:
+        # Set an ID for each (X, Y) coordinate
+        df['ID'] = df.groupby(['X', 'Y']).ngroup()
+        # For each ID take the Z score of RSS_2nd_Pol less than 2
+        df['zscore'] = df.groupby('ID')['RSS'].transform(lambda x: stats.zscore(x))
+        df = df[df['zscore'].abs() < 2]
+        df['RSS_mean'] = df.groupby('ID')['RSS'].transform('mean')
+    else:
+        # For each Distance take the Z score of RSS_2nd_Pol less than 2
+        df['zscore'] = df.groupby('Distance')['RSS'].transform(lambda x: stats.zscore(x))
+        df = df[df['zscore'].abs() < 2]
+        df['RSS_mean'] = df.groupby('Distance')['RSS'].transform('mean')
+
+    # Sort the data by the Distance
+    df = df.sort_values(by='Distance')
+    df = df.reset_index(drop=True)
 
     # Plot the Ground Truth Static Points and Anchors
     plt.figure(num=1)
@@ -89,10 +97,17 @@ def main():
     plt.legend()
     plt.show()
 
+    if args.positional:
+        # Take only the Distance and RSS_mean columns for distinct (X, Y) coordinates
+        df_mini = df.drop_duplicates(subset=['ID'])
+    else:
+        # Take only the Distance and RSS_mean columns for distinct distances
+        df_mini = df.drop_duplicates(subset=['Distance'])
+
+    exp10_X = df_mini['Distance'].values
     # Take the logarithm (base 10) of the distances
-    exp10_X = df['Distance'].values
     X = np.log10(exp10_X).reshape(-1, 1)
-    y = df['RSS_mean'].values
+    y = df_mini['RSS_mean'].values
     # Fit a linear regression model
     model = LinearRegression()
     model.fit(X, y)
@@ -107,9 +122,10 @@ def main():
     print("Estimated RSS at 1 meter (RSS_1m):", RSS_1m)
 
     # Plot the distances to the anchor vs. the RSS values
+    exp10_X_all = df['Distance'].values
+    y_all = df['RSS'].values
     plt.figure(num=2)
-    z = df['RSS'].values
-    plt.scatter(exp10_X, z, color='blue', marker='.', alpha=0.3, label='RSS values')
+    plt.scatter(exp10_X_all, y_all, color='blue', marker='.', alpha=0.3, label='RSS values')
     plt.scatter(exp10_X, y, color='red', marker='*', label='Mean RSS values')
     plt.plot(exp10_X, model.predict(X), color='black', label='Log10 Regression Model')
     plt.xlabel('Distance')

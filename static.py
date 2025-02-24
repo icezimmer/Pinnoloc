@@ -74,11 +74,11 @@ def main():
 
     if args.positional:
         # Set an ID for each (X, Y) coordinate
-        df['ID'] = df.groupby(['X', 'Y']).ngroup()
+        df['Pos_ID'] = df.groupby(['X', 'Y']).ngroup()
         # For each ID take the Z score of RSS_2nd_Pol less than 2
-        df['zscore'] = df.groupby('ID')['RSS'].transform(lambda x: stats.zscore(x))
+        df['zscore'] = df.groupby('Pos_ID')['RSS'].transform(lambda x: stats.zscore(x))
         df = df[df['zscore'].abs() < 2]
-        df['RSS_mean'] = df.groupby('ID')['RSS'].transform('mean')
+        df['RSS_mean'] = df.groupby('Pos_ID')['RSS'].transform('mean')
     else:
         # For each Distance take the Z score of RSS_2nd_Pol less than 2
         df['zscore'] = df.groupby('Distance')['RSS'].transform(lambda x: stats.zscore(x))
@@ -112,7 +112,7 @@ def main():
 
     if args.positional:
         # Take only the Distance and RSS_mean columns for distinct (X, Y) coordinates
-        df_mini = df.drop_duplicates(subset=['ID'])
+        df_mini = df.drop_duplicates(subset=['Pos_ID'])
     else:
         # Take only the Distance and RSS_mean columns for distinct distances
         df_mini = df.drop_duplicates(subset=['Distance'])

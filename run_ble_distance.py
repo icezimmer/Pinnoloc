@@ -1,6 +1,7 @@
 import logging
 import os
 import torch
+from torch import optim
 from Pinnoloc.utils.experiments import set_seed
 from torch.utils.data import DataLoader
 from Pinnoloc.utils.split_data import random_split_dataset
@@ -27,6 +28,8 @@ def main():
     device = 'cpu'
     n_layers = 2
     hidden_units = [256]
+    path_loss = 1.6234
+    rss_1m = -58.2685
     batch_size = 256
     lr = 0.1
     weight_decay = 0.01
@@ -35,7 +38,9 @@ def main():
     reduce_plateau = 0.1
     num_epochs = 100
     lambda_data = 1.0
-    lambda_physics = 100.0
+    lambda_physics = 1.0
+    lambda_bc = 1.0
+    n_collocation = 10000
 
     logging.info(f"Setting seed: {seed}")
     set_seed(seed)
@@ -47,15 +52,7 @@ def main():
     except FileNotFoundError:
         logging.error(f"Dataset not found for {task_name}. Run build.py first.")
 
-    d_input, d_output = develop_dataset[0][0].shape[0], develop_dataset[0][1].shape[0]
-
-    logging.info(f'Initializing model.')
-    model = DistanceModel(n_layers=n_layers, d_input=d_input, hidden_units=hidden_units, d_output=d_output)
-
-    # print_num_trainable_params(model)
-
-    logging.info(f'Moving model to {device}.')
-    model.to(device=torch.device(device))
+    d_input = develop_dataset[0][0].shape[0]
 
     logging.info('Splitting develop data into training and validation data.')
     train_dataset, val_dataset = random_split_dataset(dataset=develop_dataset, val_split=val_split)
@@ -82,11 +79,19 @@ def main():
     develop_dataloader = DataLoader(develop_dataset, batch_size=batch_size, shuffle=False)
     test_dataloader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
+    logging.info(f'Initializing model.')
+    model = DistanceModel(n_layers=n_layers, d_input=d_input, hidden_units=hidden_units, path_loss=path_loss, rss_1m=rss_1m)
+
+    # print_num_trainable_params(model)
+
+    logging.info(f'Moving model to {device}.')
+    model.to(device=torch.device(device))
+
     logging.info('Setting optimizer and trainer.')
-    criterion = DistanceLoss(lambda_data=lambda_data, lambda_physics=lambda_physics,
-                             mean_input=x_mean, std_input=x_std,
-                             mean_target=y_mean, std_target=y_std)
-    optimizer = setup_optimizer(model=model, lr=lr, weight_decay=weight_decay)
+    criterion = DistanceLoss(lambda_data=lambda_data, lambda_physics=lambda_physics, lambda_bc=lambda_bc,
+                             n_collocation=n_collocation,
+                             mean_input=x_mean, std_input=x_std, mean_target=y_mean, std_target=y_std)
+    optimizer = optim.AdamW(params=model.parameters(), lr=lr, weight_decay=weight_decay)
     trainer = TrainPhysicsModel(model=model, optimizer=optimizer, criterion=criterion,
                             develop_dataloader=develop_dataloader)
 
@@ -133,9 +138,11 @@ def main():
 
     import matplotlib.pyplot as plt
     plt.figure(num=1)
-    plt.scatter(targets, predictions, color='blue', marker='.', alpha=0.3)
-    plt.xlabel('True Distance')
-    plt.ylabel('Predicted Distance')
+    plt.scatter(predictions, targets, color='blue', marker='.', alpha=0.3)
+    plt.plot(range(0, 14), range(0, 14), color='red')
+    plt.grid(True)
+    plt.xlabel('Predicted Distance')
+    plt.ylabel('True Distance')
     plt.title('True Distance vs Predicted Distance')
     plt.show()
 

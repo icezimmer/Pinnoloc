@@ -41,13 +41,21 @@ class DistanceModel(StackedVectorModel):
     def __init__(self, 
                  n_layers,
                  d_input,
-                 hidden_units,  # List of hidden units
-                 d_output, 
+                 hidden_units,  # List of hidden units, d_output=1
                  activation=nn.Tanh,
                  use_batchnorm=False, 
-                 dropout_rate=0.0):
-        super(DistanceModel, self).__init__(n_layers, d_input, hidden_units, d_output, activation, use_batchnorm, dropout_rate)
+                 dropout_rate=0.0,
+                 path_loss=2.0,
+                 rss_1m=-50.0):
+        super(DistanceModel, self).__init__(n_layers, d_input, hidden_units, 1, activation, use_batchnorm, dropout_rate)
 
-        self.path_loss = nn.Parameter(torch.ones(d_output), requires_grad=True)
-        # self.boundary_condition = nn.Parameter(torch.tensor(0.5), requires_grad=True)
-        self.boundary_condition = 0.5
+        log10 = torch.log(torch.as_tensor(10.0, dtype=torch.float32))
+        k = log10 / (10.0 * path_loss)
+        self.k = nn.Parameter(k.unsqueeze(0), requires_grad=True)
+
+
+        rss_1m = torch.as_tensor(rss_1m, dtype=torch.float32)
+        self.rss_1m = nn.Parameter(rss_1m.unsqueeze(0), requires_grad=True)
+
+        sigma = torch.as_tensor(1.0, dtype=torch.float32)
+        self.sigma = nn.Parameter(sigma.unsqueeze(0), requires_grad=True)

@@ -8,9 +8,9 @@ import torch.nn as nn
 class StackedImageModel(nn.Module):
     def __init__(self,
                  n_layers,
+                 input_channels,
                  input_height,
                  input_width,
-                 input_channels,
                  filters,  # List of filter sizes
                  d_output=10,
                  kernel_size=3,
@@ -39,14 +39,13 @@ class StackedImageModel(nn.Module):
 
         super(StackedImageModel, self).__init__()
 
-        assert len(filters) == n_layers, f"filters list must have at least {n_layers} elements."
         assert pool_every >= 1, "`pool_every` must be >= 1."
 
         layers = []
         in_channels = input_channels
 
         for i in range(n_layers):
-            out_channels = filters[i]  
+            out_channels = filters[i] if i < len(filters) else filters[-1]
 
             layers.append(nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, stride=stride, padding=padding))
             layers.append(nn.ReLU(inplace=True))

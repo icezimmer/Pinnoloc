@@ -110,7 +110,7 @@ class BLEDatasetHeadingIMG(Dataset):
 
 
 class BLEDatasetDistanceIMG(Dataset):
-    def __init__(self, dataframe, key_columns, feature_columns, target_column, physics_columns=None, transform=None):
+    def __init__(self, dataframe, key_columns, sort_columns, feature_columns, target_column, physics_columns=None, transform=None):
         """
         BLE dataset with physics-based information.
 
@@ -121,30 +121,15 @@ class BLEDatasetDistanceIMG(Dataset):
             physics_columns (list): List of columns containing physics-based information.
             transform (callable, optional): Optional transformation on features.
         """
-        self.feature_columns = feature_columns
-        self.target_columns = target_column
-        self.grouped = dataframe.groupby(key_columns)
-        self.keys = list(self.grouped.groups.keys())
+        self.data = []
+        for key, group in dataframe.groupby(key_columns):
+            group = group.sort_values(sort_columns)
+            input_ = torch.tensor(group[feature_columns].values, dtype=torch.float32).unsqueeze(0)
+            target = torch.tensor(group[target_column].values, dtype=torch.float32).squeeze(-1)
+            self.data.append((input_, target))
 
     def __len__(self):
-        return len(self.keys)
+        return len(self.data)
 
     def __getitem__(self, idx):
-        # Get the (x_bin, y_bin) group corresponding to this index.
-        key = self.keys[idx]
-        group = self.grouped.get_group(key)
-        
-        # Ensure a consistent order for anchors (if anchor_id exists)
-        group = group.sort_values('Anchor_ID')
-
-        print(group)
-
-        input_ = group[self.feature_columns].values
-        input_ = torch.tensor(input_, dtype=torch.float32).unsqueeze(0)
-
-        target = group[self.target_columns].values[0]
-        target = torch.tensor(target, dtype=torch.float32)
-        
-        # Convert the features to a torch tensor.
-        # The resulting tensor will have shape (number_of_anchors, number_of_features)
-        return input_, target
+        return self.data[idx]

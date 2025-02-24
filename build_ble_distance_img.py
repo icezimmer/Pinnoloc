@@ -80,22 +80,35 @@ def preprocess_df(df):
     df['Az_Arrival'] = np.radians(df['Az_Arrival'])
     df['El_Arrival'] = np.radians(df['El_Arrival'])
 
-    df = df[['Epoch_Time', 'RSS_1st_Pol',
-       'RSS_2nd_Pol', 'Anchor_ID', 'Distance', 'X',
-       'Y', 'Heading']]
+    df['AoA_Az_x'] = df['AoA_Az'].apply(lambda x: np.cos(x))
+    df['AoA_Az_y'] = df['AoA_Az'].apply(lambda x: np.sin(x))
+    df['AoA_El_x'] = df['AoA_El'].apply(lambda x: np.cos(x))
+    df['AoA_El_y'] = df['AoA_El'].apply(lambda x: np.sin(x))
+
+    df['Pos_ID'] = df.groupby(['X', 'Y']).ngroup()
     
-    df = df.groupby(['X', 'Y', 'Heading', 'Anchor_ID']).agg({
+    df = df.groupby(['Pos_ID', 'Anchor_ID']).agg({
         'RSS_1st_Pol': 'mean',
         'RSS_2nd_Pol': 'mean',
+        'AoA_Az_x': 'mean',
+        'AoA_Az_y': 'mean',
+        'AoA_El_x': 'mean',
+        'AoA_El_y': 'mean',
         'Distance': 'mean'
     }).reset_index()
 
+    df = df.sort_values(by=['Pos_ID', 'Anchor_ID'])
+
     # rename columns
     df = df.rename(columns={
-        'X': 'key/X',
-        'Y': 'key/Y',
+        'Pos_ID': 'key/Pos_ID',
+        'Anchor_ID': 'sort/Anchor_ID',
         'RSS_1st_Pol': 'feature/RSS_1st_Pol',
         'RSS_2nd_Pol': 'feature/RSS_2nd_Pol',
+        'AoA_Az_x': 'feature/AoA_Az_x',
+        'AoA_Az_y': 'feature/AoA_Az_y',
+        'AoA_El_x': 'feature/AoA_El_x',
+        'AoA_El_y': 'feature/AoA_El_y',
         'Distance': 'target/Distance'
     })
 
@@ -187,12 +200,13 @@ def main():
     dataset = BLEDatasetDistanceIMG(
         dataframe=df,
         key_columns=[col for col in df.columns if col.startswith('key/')],
+        sort_columns=[col for col in df.columns if col.startswith('sort/')],
         feature_columns=[col for col in df.columns if col.startswith('feature/')],
         target_column=[col for col in df.columns if col.startswith('target/')],
         physics_columns=[col for col in df.columns if col.startswith('physics/')]
         )
     print(dataset[0])
-    print(dataset[0][0].shape)
+    print(dataset[0][0].shape, dataset[0][1].shape)
 
     develop_dataset, test_dataset = random_split_dataset(dataset, val_split=0.2)
 

@@ -92,48 +92,24 @@ def preprocess_df(df):
     df = df[df['Channel'] == 37]
     # Take only the Anchor_ID = 6501
     df = df[df['Anchor_ID'] == 6501]
-    df = df[df['Heading'] == 2]
-
+    df = df[df['Heading'] == 3]
 
     # For each Distance take the Z score of RSS_2nd_Pol less than 2
-    df['zscore'] = df.groupby('Distance')['RSS_2nd_Pol'].transform(lambda x: stats.zscore(x))
-    df = df[df['zscore'].abs() < 2]
-
-
-    # Set RSS_1m as the reference RSS value and the path-loss value for each Anchor_ID
-    # Anchor_ID 6501: (RSS_1m = -58.10682936089764, alpha = 1.4589097985754986)
-    # Anchor_ID 6502: (RSS_1m = -59.1429209008935, alpha = 2.055682881628363)
-    # Anchor_ID 6503: (RSS_1m = -58.00410788271862, alpha = 1.462165416607945)
-    # Anchor_ID 6504: (RSS_1m = -58.28560404488733, alpha = 1.556561011399692)
-    # df['RSS_1m'] = 0.0
-    # df['alpha'] = 0.0
-    # df.loc[df['Anchor_ID'] == 6501, 'RSS_1m'] = -58.10682936089764
-    # df.loc[df['Anchor_ID'] == 6501, 'alpha'] = 1.4589097985754986
-    # df.loc[df['Anchor_ID'] == 6502, 'RSS_1m'] = -59.1429209008935
-    # df.loc[df['Anchor_ID'] == 6502, 'alpha'] = 2.055682881628363
-    # df.loc[df['Anchor_ID'] == 6503, 'RSS_1m'] = -58.00410788271862
-    # df.loc[df['Anchor_ID'] == 6503, 'alpha'] = 1.462165416607945
-    # df.loc[df['Anchor_ID'] == 6504, 'RSS_1m'] = -58.28560404488733
-    # df.loc[df['Anchor_ID'] == 6504, 'alpha'] = 1.556561011399692
+    # df['zscore'] = df.groupby('Distance')['RSS_2nd_Pol'].transform(lambda x: stats.zscore(x))
+    # df = df[df['zscore'].abs() < 2]
 
     # Standardize the RSS_1st_Pol, AoA_Az, AoA_El, RSS_2nd_Pol columns respectively
     df['feature/RSS'] = df['RSS_2nd_Pol']
-    # # cos and sin of the azimuth angle
-    # df['feature/AoA_Az_x'] = df['AoA_Az'].apply(lambda x: np.cos(x))
-    # df['feature/AoA_Az_y'] = df['AoA_Az'].apply(lambda x: np.sin(x))
-    # # cos and sin of the elevation angle
-    # df['feature/AoA_El_x'] = df['AoA_El'].apply(lambda x: np.cos(x))
-    # df['feature/AoA_El_y'] = df['AoA_El'].apply(lambda x: np.sin(x))
+    # cos and sin of the azimuth angle
+    df['feature/AoA_Az_x'] = df['AoA_Az'].apply(lambda x: np.cos(x))
+    df['feature/AoA_Az_y'] = df['AoA_Az'].apply(lambda x: np.sin(x))
+    # cos and sin of the elevation angle
+    df['feature/AoA_El_x'] = df['AoA_El'].apply(lambda x: np.cos(x))
+    df['feature/AoA_El_y'] = df['AoA_El'].apply(lambda x: np.sin(x))
+
     # df['feature/Az_Departure'] = df['Az_Departure']
 
-    # df['target/Distance'] = (df['Distance'] - df['Distance'].mean()) / df['Distance'].std()
     df['target/Distance'] = df['Distance']
-
-    # df['physics/Distance_std'] = df['Distance'].std()
-    # df['physics/RSS_std'] = df['RSS_2nd_Pol'].std()
-    # df['physics/RSS'] = df['RSS_2nd_Pol']
-    # df['physics/RSS_1m'] = df['RSS_1m']
-    # df['physics/alpha'] = df['alpha']
 
     return df
 

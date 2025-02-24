@@ -141,11 +141,11 @@ class EvaluateRegressor:
             target = target.to(self.device)
 
             output = self.model(input_)  # Model outputs continuous values (not logits)
-            predictions.append(output.flatten())  # Keep as 1D tensor
-            targets.append(target.flatten())  # Keep as 1D tensor
+            predictions.append(output)
+            targets.append(target)
 
         # Concatenate all tensors into one for proper calculations
-        return torch.cat(predictions), torch.cat(targets)
+        return torch.cat(predictions, dim=0), torch.cat(targets)
 
     def evaluate(self, mean=None, std=None, saving_path=None):
         self.model.eval()

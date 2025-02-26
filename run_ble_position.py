@@ -17,14 +17,22 @@ from Pinnoloc.utils.check_device import check_model_device
 from Pinnoloc.utils.experiments import read_yaml_to_dict
 # from codecarbon import EmissionsTracker
 from Pinnoloc.utils.saving import save_data
+import argparse
 
 
-# Create dictionary with the cardinal directions and the corresponding labels
 cardinal_directions = {
-    'east': (0.5, 0.0),
-    'north': (0.0, 0.5),
-    'south': (0.0, -0.5),
-    'west': (-0.5, 0.0)
+    'east': (1.0, 0.0),
+    'north': (0.0, 1.0),
+    'south': (0.0, -1.0),
+    'west': (-1.0, 0.0)
+}
+
+
+anchor_positions = {
+    '6501': (0.0, 3.0),
+    '6502': (6.0, 0.0),
+    '6503': (12.0, 3.0),
+    '6504': (6.0, 6.0)
 }
 
 
@@ -38,12 +46,11 @@ def main():
     n_layers = 2
     hidden_units = [256]
     #
-    heading = 'west'  # to plot the arrow
+    heading = 'east'  # to plot the arrow
     #
-    path_loss = 1.6234
-    rss_1m = -58.2685
-    anchor_x = 0.0
-    anchor_y = 3.0
+    path_loss = 1.4335
+    rss_1m = -60.9078
+    anchor_x, anchor_y = anchor_positions['6503']
     batch_size = 256
     lr = 0.1
     weight_decay = 0.01
@@ -52,9 +59,9 @@ def main():
     reduce_plateau = 0.1
     num_epochs = 100
     lambda_data = 1.0
-    lambda_rss = 10.0
+    lambda_rss = 0.0
     lambda_azimuth = 0.0
-    lambda_bc = 0.001
+    lambda_bc = 0.0
     n_collocation = 1000
 
     logging.info(f"Setting seed: {seed}")
@@ -157,7 +164,7 @@ def main():
     import matplotlib.pyplot as plt
     plt.figure(num=1)
     plt.scatter(anchor_x, anchor_y, c='red', marker='o', s=100, label='Anchor')
-    plt.arrow(anchor_x, anchor_y, cardinal_directions[f'{heading}'][0], cardinal_directions[f'{heading}'][1], head_width=0.2, head_length=0.2, fc='black', ec='black')
+    plt.arrow(5.0, 7.5, cardinal_directions[f'{heading}'][0], cardinal_directions[f'{heading}'][1], head_width=0.3, head_length=0.3, fc='black', ec='black', label='Heading')
     plt.plot([0, 12, 12, 0, 0], [0, 0, 6, 6, 0], 'k-')
     plt.scatter(targets[:,0:1], targets[:,1:2], color='red', marker='.', alpha=0.3, label='Target Points')
     plt.scatter(predictions[:,0:1], predictions[:,1:2], color='blue', marker='.', alpha=0.3, label='Predicted Points')

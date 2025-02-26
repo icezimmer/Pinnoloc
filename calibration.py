@@ -15,6 +15,7 @@ def parse_args():
     parser.add_argument('--anchor', type=int, help='The ID of the anchor node', required=True, choices=[6501, 6502, 6503, 6504])
     parser.add_argument('--channel', type=int, help='The BLE channel', required=True, choices=[37, 38, 39])
     parser.add_argument('--polarization', type=str, help='The BLE polarization', required=True, choices=['1st', '2nd'])
+    parser.add_argument('--preprocess', action='store_true', help='Preprocess the data removing the outliers')
     parser.add_argument('--positional', action='store_true', help='Group the data by the (X, Y) coordinates instead of the distance')
 
     return parser.parse_args()
@@ -64,14 +65,16 @@ def main():
     if args.positional:
         # Set an ID for each (X, Y) coordinate
         df['Pos_ID'] = df.groupby(['X', 'Y']).ngroup()
-        # For each ID take the Z score of RSS_2nd_Pol less than 2
-        df['zscore'] = df.groupby('Pos_ID')['RSS'].transform(lambda x: stats.zscore(x))
-        df = df[df['zscore'].abs() < 2]
+        if args.preprocess:
+            # For each ID take the Z score of RSS_2nd_Pol less than 2
+            df['zscore'] = df.groupby('Pos_ID')['RSS'].transform(lambda x: stats.zscore(x))
+            df = df[df['zscore'].abs() < 2]
         df['RSS_mean'] = df.groupby('Pos_ID')['RSS'].transform('mean')
     else:
-        # For each Distance take the Z score of RSS_2nd_Pol less than 2
-        df['zscore'] = df.groupby('Distance')['RSS'].transform(lambda x: stats.zscore(x))
-        df = df[df['zscore'].abs() < 2]
+        if args.preprocess:
+            # For each Distance take the Z score of RSS_2nd_Pol less than 2
+            df['zscore'] = df.groupby('Distance')['RSS'].transform(lambda x: stats.zscore(x))
+            df = df[df['zscore'].abs() < 2]
         df['RSS_mean'] = df.groupby('Distance')['RSS'].transform('mean')
 
     # Sort the data by the Distance

@@ -8,12 +8,11 @@ import argparse
 from scipy import stats
 
 
-# Create dictionary with the cardinal directions and the corresponding labels
 cardinal_directions = {
-    'east': (0.5, 0.0),
-    'north': (0.0, 0.5),
-    'south': (0.0, -0.5),
-    'west': (-0.5, 0.0)
+    'east': (1.0, 0.0),
+    'north': (0.0, 1.0),
+    'south': (0.0, -1.0),
+    'west': (-1.0, 0.0)
 }
 
 
@@ -21,10 +20,11 @@ cardinal_directions = {
 def parse_args():
     # Create the parser
     parser = argparse.ArgumentParser(description='Path Loss Exponent Estimation')
-    parser.add_argument('--heading', type=str, help='The cardinal direction', required=True, choices=['east', 'north', 'south', 'west'])
     parser.add_argument('--anchor', type=int, help='The ID of the anchor node', required=True, choices=[6501, 6502, 6503, 6504])
     parser.add_argument('--channel', type=int, help='The BLE channel', required=True, choices=[37, 38, 39])
     parser.add_argument('--polarization', type=str, help='The BLE polarization', required=True, choices=['1st', '2nd'])
+    parser.add_argument('--heading', type=str, help='The cardinal direction', required=True, choices=['east', 'north', 'south', 'west'])
+    parser.add_argument('--preprocess', action='store_true', help='Preprocess the data removing the outliers')
     parser.add_argument('--positional', action='store_true', help='Group the data by the (X, Y) coordinates instead of the distance')
 
     return parser.parse_args()
@@ -75,14 +75,16 @@ def main():
     if args.positional:
         # Set an ID for each (X, Y) coordinate
         df['Pos_ID'] = df.groupby(['X', 'Y']).ngroup()
-        # For each ID take the Z score of RSS_2nd_Pol less than 2
-        df['zscore'] = df.groupby('Pos_ID')['RSS'].transform(lambda x: stats.zscore(x))
-        df = df[df['zscore'].abs() < 2]
+        if args.preprocess:
+            # For each ID take the Z score of RSS_2nd_Pol less than 2
+            df['zscore'] = df.groupby('Pos_ID')['RSS'].transform(lambda x: stats.zscore(x))
+            df = df[df['zscore'].abs() < 2]
         df['RSS_mean'] = df.groupby('Pos_ID')['RSS'].transform('mean')
     else:
-        # For each Distance take the Z score of RSS_2nd_Pol less than 2
-        df['zscore'] = df.groupby('Distance')['RSS'].transform(lambda x: stats.zscore(x))
-        df = df[df['zscore'].abs() < 2]
+        if args.preprocess:
+            # For each Distance take the Z score of RSS_2nd_Pol less than 2
+            df['zscore'] = df.groupby('Distance')['RSS'].transform(lambda x: stats.zscore(x))
+            df = df[df['zscore'].abs() < 2]
         df['RSS_mean'] = df.groupby('Distance')['RSS'].transform('mean')
     
     # sort the data by the Distance
@@ -98,7 +100,7 @@ def main():
     for i, label in enumerate(anchors['Anchor_ID']):
         plt.text(anchors['Anchor_x'][i] / 100, anchors['Anchor_y'][i] / 100, label, fontsize=10)
     # plot an arrow
-    plt.arrow(6, 3, cardinal_directions[f'{heading}'][0], cardinal_directions[f'{heading}'][1], head_width=0.2, head_length=0.2, fc='black', ec='black')
+    plt.arrow(5.0, 7.5, cardinal_directions[f'{heading}'][0], cardinal_directions[f'{heading}'][1], head_width=0.3, head_length=0.3, fc='black', ec='black')
     # plot the room
     plt.plot([0, 12, 12, 0, 0], [0, 0, 6, 6, 0], 'k-')
     plt.xlim(-2, 14)
@@ -145,7 +147,7 @@ def main():
     plt.plot(exp10_X, model.predict(X), color='black', label='Log10 Regression Model')
     plt.xlabel('Distance')
     plt.ylabel('RSS')
-    plt.title(f'Anchor:{anchor}, Heading:{heading}, Channel:{channel}, Polarization:{polarization}')
+    plt.title(f'Anchor:{anchor}, Channel:{channel}, Polarization:{polarization}, Heading:{heading}')
     plt.grid(True)
     plt.legend()
     plt.show()

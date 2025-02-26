@@ -7,6 +7,7 @@ from Pinnoloc.utils.saving import save_data
 import logging
 import os
 from scipy import stats
+import argparse
 
 
 # Create dictionary with the cardinal directions and the corresponding labels
@@ -62,7 +63,7 @@ def create_df():
     return df
 
 
-def preprocess_df(df):
+def preprocess_df(df, anchor, channel, polarization, heading):
     # Convert cm distances to meters
     df['X'] = df['X'] / 100
     df['Y'] = df['Y'] / 100
@@ -81,26 +82,17 @@ def preprocess_df(df):
     df.loc[df['Anchor_ID'] == 6503, 'AoA_Az'] = np.pi - df.loc[df['Anchor_ID'] == 6503, 'AoA_Az']  # Right Anchor (West direction)
     df.loc[df['Anchor_ID'] == 6504, 'AoA_Az'] = - (np.pi / 2) - df.loc[df['Anchor_ID'] == 6504, 'AoA_Az']  # Top Anchor (South direction)
 
-    # # Transform the gt azimuth angle of arrival to the canonical reference system
-    # df.loc[df['Anchor_ID'] == 6501, 'Az_Arrival'] = - df.loc[df['Anchor_ID'] == 6501, 'Az_Arrival']  # East Anchor
-    # df.loc[df['Anchor_ID'] == 6504, 'Az_Arrival'] = (np.pi / 2) - df.loc[df['Anchor_ID'] == 6504, 'Az_Arrival']  # North Anchor
-    # df.loc[df['Anchor_ID'] == 6503, 'Az_Arrival'] = - (np.pi / 2) - df.loc[df['Anchor_ID'] == 6503, 'Az_Arrival']  # South Anchor
-    # df.loc[df['Anchor_ID'] == 6502, 'Az_Arrival'] = np.pi - df.loc[df['Anchor_ID'] == 6502, 'Az_Arrival']  # West Anchor
-
-    print(df.columns)
     
-    # Take only the Anchor_ID = 6501
-    df = df[df['Anchor_ID'] == 6501]
-    # Take only the Channel = 37 with the 2nd polarization
-    df = df[df['Channel'] == 37]
-    df = df[df['Heading'] == cardinal_directions['west']]
+    df = df[df['Anchor_ID'] == anchor]
+    df = df[df['Channel'] == channel]
+    df = df[df['Heading'] == cardinal_directions[heading]]
 
     # For each Distance take the Z score of RSS_2nd_Pol less than 2
     # df['zscore'] = df.groupby('Distance')['RSS_2nd_Pol'].transform(lambda x: stats.zscore(x))
     # df = df[df['zscore'].abs() < 2]
 
-    # Take only the second polarization
-    df['feature/RSS'] = df['RSS_2nd_Pol']
+    # Select polarization
+    df['feature/RSS'] = df[f'RSS_{polarization}_Pol']
     # # cos and sin of the azimuth angle
     # df['feature/AoA_Az_x'] = df['AoA_Az'].apply(lambda x: np.cos(x))
     # df['feature/AoA_Az_y'] = df['AoA_Az'].apply(lambda x: np.sin(x))
@@ -121,14 +113,33 @@ def preprocess_df(df):
     return df
 
 
+# set a parse_args function to parse the arguments
+def parse_args():
+    # Create the parser
+    parser = argparse.ArgumentParser(description='Path Loss Exponent Estimation')
+    parser.add_argument('--anchor', type=int, help='The ID of the anchor node', required=True, choices=[6501, 6502, 6503, 6504])
+    parser.add_argument('--channel', type=int, help='The BLE channel', required=True, choices=[37, 38, 39])
+    parser.add_argument('--polarization', type=str, help='The BLE polarization', required=True, choices=['1st', '2nd'])
+    parser.add_argument('--heading', type=str, help='The cardinal direction', required=True, choices=['east', 'north', 'south', 'west'])
+
+    return parser.parse_args()
+
+
 def main():
     logging.basicConfig(level=logging.INFO)
 
     task_name = 'ble_position'
+    
+    # Take the arguments from the command line
+    args = parse_args()
+    anchor = args.anchor
+    channel = args.channel
+    polarization = args.polarization
+    heading = args.heading
 
     df = create_df()
     print(df)
-    df = preprocess_df(df)
+    df = preprocess_df(df, anchor=anchor, channel=channel, polarization=polarization, heading=heading)
     print(df)
 
     feature_columns = [col for col in df.columns if col.startswith('feature/')]

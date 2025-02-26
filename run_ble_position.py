@@ -6,9 +6,9 @@ from Pinnoloc.utils.experiments import set_seed
 from torch.utils.data import DataLoader
 from Pinnoloc.utils.split_data import random_split_dataset
 from Pinnoloc.utils.printing import print_num_trainable_params, print_parameters
-from Pinnoloc.models.vector import StackedVectorModel, DistanceModel
+from Pinnoloc.models.vector import StackedVectorModel, PositionModel
 from Pinnoloc.ml.optimization import setup_optimizer
-from Pinnoloc.ml.loss import DistanceLoss
+from Pinnoloc.ml.loss import PositionLoss
 from Pinnoloc.ml.training import TrainPhysicsModel
 from Pinnoloc.ml.evaluation import EvaluateRegressor
 from Pinnoloc.dataset.preprocessing import compute_mean_std, StandardizeDataset
@@ -19,17 +19,31 @@ from Pinnoloc.utils.experiments import read_yaml_to_dict
 from Pinnoloc.utils.saving import save_data
 
 
+# Create dictionary with the cardinal directions and the corresponding labels
+cardinal_directions = {
+    'east': (0.5, 0.0),
+    'north': (0.0, 0.5),
+    'south': (0.0, -0.5),
+    'west': (-0.5, 0.0)
+}
+
+
 def main():
     logging.basicConfig(level=logging.INFO)
 
-    task_name = 'ble_distance'
+    task_name = 'ble_position'
 
     seed = 42
     device = 'cpu'
     n_layers = 2
     hidden_units = [256]
-    path_loss = 1.6234  # --anchor 6501 --channel 37 --polarization 2nd --heading west
+    #
+    heading = 'west'  # to plot the arrow
+    #
+    path_loss = 1.6234
     rss_1m = -58.2685
+    anchor_x = 0.0
+    anchor_y = 3.0
     batch_size = 256
     lr = 0.1
     weight_decay = 0.01
@@ -38,9 +52,10 @@ def main():
     reduce_plateau = 0.1
     num_epochs = 100
     lambda_data = 1.0
-    lambda_physics = 1.0
+    lambda_rss = 1.0
+    lambda_azimuth = 0.0
     lambda_bc = 1.0
-    n_collocation = 10000
+    n_collocation = 1000
 
     logging.info(f"Setting seed: {seed}")
     set_seed(seed)
@@ -60,6 +75,7 @@ def main():
     logging.info('Standardizing datasets.')
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False)
     x_mean, x_std, y_mean, y_std = compute_mean_std(train_dataloader)
+    print(x_mean, x_std, y_mean, y_std)
     # x_mean, x_std, y_mean, y_std = None, None, None, None
     train_dataset = StandardizeDataset(base_dataset=train_dataset,
                                        mean_input=x_mean, std_input=x_std,
@@ -80,7 +96,9 @@ def main():
     test_dataloader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
     logging.info(f'Initializing model.')
-    model = DistanceModel(n_layers=n_layers, d_input=d_input, hidden_units=hidden_units, path_loss=path_loss, rss_1m=rss_1m)
+    model = PositionModel(n_layers=n_layers, d_input=d_input, hidden_units=hidden_units,
+                          anchor_x=anchor_x, anchor_y=anchor_y,
+                          path_loss=path_loss, rss_1m=rss_1m)
 
     # print_num_trainable_params(model)
 
@@ -88,7 +106,7 @@ def main():
     model.to(device=torch.device(device))
 
     logging.info('Setting optimizer and trainer.')
-    criterion = DistanceLoss(lambda_data=lambda_data, lambda_physics=lambda_physics, lambda_bc=lambda_bc,
+    criterion = PositionLoss(lambda_data=lambda_data, lambda_rss=lambda_rss, lambda_azimuth=lambda_azimuth, lambda_bc=lambda_bc,
                              n_collocation=n_collocation,
                              mean_input=x_mean, std_input=x_std, mean_target=y_mean, std_target=y_std)
     optimizer = optim.AdamW(params=model.parameters(), lr=lr, weight_decay=weight_decay)
@@ -128,22 +146,26 @@ def main():
             target = target.to(device)
 
             output = model(input_)  # Model outputs continuous values (not logits)
-            predictions.append(output.flatten())  # Keep as 1D tensor
-            targets.append(target.flatten())  # Keep as 1D tensor
+            predictions.append(output)  # Keep as 1D tensor
+            targets.append(target)  # Keep as 1D tensor
 
         # Concatenate all tensors into one for proper calculations
-        predictions, targets = torch.cat(predictions), torch.cat(targets)
+        predictions, targets = torch.cat(predictions, dim=0), torch.cat(targets, dim=0)
         predictions = predictions * y_std + y_mean
         targets = targets * y_std + y_mean
 
     import matplotlib.pyplot as plt
     plt.figure(num=1)
-    plt.scatter(predictions, targets, color='blue', marker='.', alpha=0.3)
-    plt.plot(range(0, 14), range(0, 14), color='red')
+    plt.scatter(anchor_x, anchor_y, c='red', marker='o', s=100, label='Anchor')
+    plt.arrow(anchor_x, anchor_y, cardinal_directions[f'{heading}'][0], cardinal_directions[f'{heading}'][1], head_width=0.2, head_length=0.2, fc='black', ec='black')
+    plt.plot([0, 12, 12, 0, 0], [0, 0, 6, 6, 0], 'k-')
+    plt.scatter(targets[:,0:1], targets[:,1:2], color='red', marker='.', alpha=0.3, label='Target Points')
+    plt.scatter(predictions[:,0:1], predictions[:,1:2], color='blue', marker='.', alpha=0.3, label='Predicted Points')
     plt.grid(True)
-    plt.xlabel('Predicted Distance')
-    plt.ylabel('True Distance')
-    plt.title('True Distance vs Predicted Distance')
+    plt.xlabel('x (m)')
+    plt.ylabel('y (m)')
+    plt.title('True Positions vs Predicted Positions')
+    plt.legend()
     plt.show()
 
 

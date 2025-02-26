@@ -87,9 +87,6 @@ def preprocess_df(df):
     # df.loc[df['Anchor_ID'] == 6503, 'Az_Arrival'] = - (np.pi / 2) - df.loc[df['Anchor_ID'] == 6503, 'Az_Arrival']  # South Anchor
     # df.loc[df['Anchor_ID'] == 6502, 'Az_Arrival'] = np.pi - df.loc[df['Anchor_ID'] == 6502, 'Az_Arrival']  # West Anchor
 
-    # Compute the euclidean distance between the anchor (Anchor_x, Anchor_y) and the tag (X, Y) coordinates
-    df['Distance'] = ((df['X'] - df['Anchor_x'])**2 + (df['Y'] - df['Anchor_y'])**2)**0.5
-
     print(df.columns)
     
     # Take only the Anchor_ID = 6501
@@ -104,14 +101,22 @@ def preprocess_df(df):
 
     # Take only the second polarization
     df['feature/RSS'] = df['RSS_2nd_Pol']
-    # cos and sin of the azimuth angle
-    df['feature/AoA_Az_x'] = df['AoA_Az'].apply(lambda x: np.cos(x))
-    df['feature/AoA_Az_y'] = df['AoA_Az'].apply(lambda x: np.sin(x))
-    # cos and sin of the elevation angle
-    df['feature/AoA_El_x'] = df['AoA_El'].apply(lambda x: np.cos(x))
-    df['feature/AoA_El_y'] = df['AoA_El'].apply(lambda x: np.sin(x))
+    # # cos and sin of the azimuth angle
+    # df['feature/AoA_Az_x'] = df['AoA_Az'].apply(lambda x: np.cos(x))
+    # df['feature/AoA_Az_y'] = df['AoA_Az'].apply(lambda x: np.sin(x))
+    df['feature/AoA_Az'] = np.arctan2(np.sin(df['AoA_Az']), np.cos(df['AoA_Az']))  # set the angle between -pi and pi
 
-    df['target/Distance'] = df['Distance']
+    df['target/X'] = df['X']
+    df['target/Y'] = df['Y']
+
+    # # Scatter plot of AoA_Az_x vs AoA_Az_y
+    # import matplotlib.pyplot as plt
+    # plt.figure(num=1)
+    # plt.scatter(df['feature/AoA_Az_x'], df['feature/AoA_Az_y'])
+    # plt.grid(True)
+    # plt.xlabel('cos(AoA_Az)')
+    # plt.ylabel('sin(AoA_Az)')
+    # plt.show()
 
     return df
 
@@ -119,7 +124,7 @@ def preprocess_df(df):
 def main():
     logging.basicConfig(level=logging.INFO)
 
-    task_name = 'ble_distance'
+    task_name = 'ble_position'
 
     df = create_df()
     print(df)

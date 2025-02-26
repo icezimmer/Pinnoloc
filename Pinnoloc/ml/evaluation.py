@@ -145,7 +145,7 @@ class EvaluateRegressor:
             targets.append(target)
 
         # Concatenate all tensors into one for proper calculations
-        return torch.cat(predictions, dim=0), torch.cat(targets)
+        return torch.cat(predictions, dim=0), torch.cat(targets, dim=0)
 
     def evaluate(self, mean=None, std=None, saving_path=None):
         self.model.eval()

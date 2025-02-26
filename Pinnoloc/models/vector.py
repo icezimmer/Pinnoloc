@@ -73,16 +73,32 @@ class PositionModel(StackedVectorModel):
         super(PositionModel, self).__init__(n_layers, d_input, hidden_units, 2, activation, use_batchnorm, dropout_rate)
 
         # Define buffer of model
-        anchor_x = torch.as_tensor(anchor_x, dtype=torch.float32)
-        self.register_buffer('anchor_x', anchor_x.unsqueeze(0))
+        anchor_x = torch.as_tensor(anchor_x, dtype=torch.float32).unsqueeze(0)
+        self.register_buffer('anchor_x', anchor_x)
 
-        anchor_y = torch.as_tensor(anchor_y, dtype=torch.float32)
-        self.register_buffer('anchor_y', anchor_y.unsqueeze(0))
+        anchor_y = torch.as_tensor(anchor_y, dtype=torch.float32).unsqueeze(0)
+        self.register_buffer('anchor_y', anchor_y)
 
         log10 = torch.log(torch.as_tensor(10.0, dtype=torch.float32))
         k = log10 / (10.0 * path_loss)
-        self.k = nn.Parameter(k.unsqueeze(0), requires_grad=True)
+        k = torch.as_tensor(k, dtype=torch.float32).unsqueeze(0)
+        self.k = nn.Parameter(k, requires_grad=True)
 
+        rss_1m = torch.as_tensor(rss_1m, dtype=torch.float32).unsqueeze(0)
+        self.rss_1m = nn.Parameter(rss_1m, requires_grad=True)
 
-        rss_1m = torch.as_tensor(rss_1m, dtype=torch.float32)
-        self.rss_1m = nn.Parameter(rss_1m.unsqueeze(0), requires_grad=False)
+        d_0 = torch.as_tensor(1.0, dtype=torch.float32).unsqueeze(0)
+        self.d_0 = nn.Parameter(d_0, requires_grad=True)
+
+    # @property
+    # def k(self):
+    #     return torch.nn.functional.softplus(self.k_)  # log(1 + exp(k))
+    
+    # @property
+    # def rss_1m(self):
+    #     return -torch.nn.functional.softplus(-self.rss_1m_)
+    
+    # @property
+    # def d_0(self):
+    #     return torch.nn.functional.softplus(self.d_0_)
+    

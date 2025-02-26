@@ -52,9 +52,9 @@ def main():
     reduce_plateau = 0.1
     num_epochs = 100
     lambda_data = 1.0
-    lambda_rss = 1.0
+    lambda_rss = 10.0
     lambda_azimuth = 0.0
-    lambda_bc = 1.0
+    lambda_bc = 0.001
     n_collocation = 1000
 
     logging.info(f"Setting seed: {seed}")

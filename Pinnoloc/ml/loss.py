@@ -261,7 +261,7 @@ class PositionLoss(torch.nn.Module):
             x_boundary_collocation = x_boundary_collocation - model.anchor_x
             y_boundary_collocation = y_boundary_collocation - model.anchor_y
             distance_2 = torch.pow(x_boundary_collocation, 2) + torch.pow(y_boundary_collocation, 2)
-            z_boundary_target = torch.ones((self.n_collocation, 1), device=inputs.device, requires_grad=False)
+            z_boundary_target = torch.pow(model.d_0, 2) * torch.ones((self.n_collocation, 1), device=inputs.device)
             boundary_loss = self.data_loss_fn(distance_2, z_boundary_target)
 
             # Compute total loss

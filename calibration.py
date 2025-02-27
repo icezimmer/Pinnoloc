@@ -12,9 +12,9 @@ from scipy import stats
 def parse_args():
     # Create the parser
     parser = argparse.ArgumentParser(description='Path Loss Exponent Estimation')
-    parser.add_argument('--anchor', type=int, help='The ID of the anchor node', required=True, choices=[6501, 6502, 6503, 6504])
-    parser.add_argument('--channel', type=int, help='The BLE channel', required=True, choices=[37, 38, 39])
-    parser.add_argument('--polarization', type=str, help='The BLE polarization', required=True, choices=['1st', '2nd'])
+    parser.add_argument('--anchor', type=int, help='The ID of the anchor node', required=True, choices=[6501, 6502, 6503, 6504, -1])
+    parser.add_argument('--channel', type=int, help='The BLE channel', required=True, choices=[37, 38, 39, -1])
+    parser.add_argument('--polarization', type=str, help='The BLE polarization', required=True, choices=['1st', '2nd', 'mean'])
     parser.add_argument('--preprocess', action='store_true', help='Preprocess the data removing the outliers')
     parser.add_argument('--positional', action='store_true', help='Group the data by the (X, Y) coordinates instead of the distance')
 
@@ -58,23 +58,31 @@ def main():
     df['Distance'] = ((df['X'] - df['Anchor_x'])**2 + (df['Y'] - df['Anchor_y'])**2)**0.5
     
     # Take only the data for the selected anchor, channel, and polarization
-    df = df[df['Channel'] == channel]
-    df = df[df['Anchor_ID'] == anchor]
-    df = df.rename(columns={f'RSS_{polarization}_Pol': 'RSS'})
+    if anchor != -1:
+        df = df[df['Anchor_ID'] == anchor]
+    if channel != -1:
+        df = df[df['Channel'] == channel]
+    if polarization == 'mean':
+        df['RSS'] = (df['RSS_1st_Pol'] + df['RSS_2nd_Pol']) / 2
+    else:
+        df['RSS'] = df[f'RSS_{polarization}_Pol']
 
     if args.positional:
         # Set an ID for each (X, Y) coordinate
         df['Pos_ID'] = df.groupby(['X', 'Y']).ngroup()
         if args.preprocess:
             # For each ID take the Z score of RSS_2nd_Pol less than 2
-            df['zscore'] = df.groupby('Pos_ID')['RSS'].transform(lambda x: stats.zscore(x))
-            df = df[df['zscore'].abs() < 2]
+            df['zscore_RSS'] = df.groupby('Distance')['RSS'].transform(lambda x: stats.zscore(x))
+            df = df[df['zscore_RSS'].abs() < 2]
+            df['zscore_AoA_Az'] = df.groupby('Pos_ID')['AoA_Az'].transform(lambda x: stats.zscore(x))
+            df = df[df['zscore_AoA_Az'].abs() < 2]
         df['RSS_mean'] = df.groupby('Pos_ID')['RSS'].transform('mean')
     else:
         if args.preprocess:
-            # For each Distance take the Z score of RSS_2nd_Pol less than 2
-            df['zscore'] = df.groupby('Distance')['RSS'].transform(lambda x: stats.zscore(x))
-            df = df[df['zscore'].abs() < 2]
+            df['zscore_RSS'] = df.groupby('Distance')['RSS'].transform(lambda x: stats.zscore(x))
+            df = df[df['zscore_RSS'].abs() < 2]
+            df['zscore_AoA_Az'] = df.groupby(['X', 'Y'])['AoA_Az'].transform(lambda x: stats.zscore(x))
+            df = df[df['zscore_AoA_Az'].abs() < 2]
         df['RSS_mean'] = df.groupby('Distance')['RSS'].transform('mean')
 
     # Sort the data by the Distance

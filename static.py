@@ -8,22 +8,81 @@ import argparse
 from scipy import stats
 
 
-cardinal_directions = {
+cardinal_arrows = {
     'east': (1.0, 0.0),
     'north': (0.0, 1.0),
     'south': (0.0, -1.0),
     'west': (-1.0, 0.0)
 }
 
+# Create dictionary with the cardinal directions and the corresponding labels
+cardinal_directions = {
+    'east': 0,
+    'north': 1,
+    'south': 2,
+    'west': 3
+}
+
+anchor_positions = {
+    '6501': (0.0, 3.0),
+    '6502': (6.0, 0.0),
+    '6503': (12.0, 3.0),
+    '6504': (6.0, 6.0)
+}
+
+
+def create_df():
+
+    def load_gt():
+        def load_gt_(cardinal_direction, label):
+            gt = load_gt_dataset(f'data_storage/Dataset_AoA_RSS_BLE51/static/gt/gt_static_{cardinal_direction}.txt')
+            gt['Heading'] = label
+            return gt
+        
+        gt_list = [load_gt_(cardinal_direction, label) for cardinal_direction, label in cardinal_directions.items()]
+        return gt_list
+
+
+    def load_data():
+        def load_data_(cardinal_direction):
+            data = load_raw_dataset(f'data_storage/Dataset_AoA_RSS_BLE51/static/beacons/beacons_static_{cardinal_direction}.txt')
+            return data
+        
+        # Create a list of dataframes with the data for each cardinal direction
+        data_list = [load_data_(cardinal_direction) for cardinal_direction, _ in cardinal_directions.items()]
+        return data_list
+    
+    gt_list = load_gt()
+    data_list = load_data()
+    # Merge the data with the ground truth data
+    df_list = [pd.merge_asof(data, gt, left_on='Epoch_Time', right_on='Start_Time', direction='backward') for data, gt in zip(data_list, gt_list)]
+    # Filter the rows where the epoch time is within the interval [Start_Time, End_Time]
+    df_list = [df[df['Epoch_Time'] <= df['End_Time']] for df in df_list]
+    # Concatenate the dataframes
+    df = pd.concat(df_list)
+    # Sort the data by the epoch time
+    df = df.sort_values(by='Epoch_Time')
+    # Reset the index
+    df = df.reset_index(drop=True)
+
+    grid = load_grid_dataset()
+    anchors = create_anchors_dataset()
+
+    # Merge the data with the grid and anchors data (grid and anchors data are ground truth data)
+    df = pd.merge(df, grid, how='inner', on=['X', 'Y', 'Anchor_ID'])
+    df = pd.merge(df, anchors, how='inner', on='Anchor_ID')
+
+    return df
+
 
 # set a parse_args function to parse the arguments
 def parse_args():
     # Create the parser
     parser = argparse.ArgumentParser(description='Path Loss Exponent Estimation')
-    parser.add_argument('--anchor', type=int, help='The ID of the anchor node', required=True, choices=[6501, 6502, 6503, 6504])
-    parser.add_argument('--channel', type=int, help='The BLE channel', required=True, choices=[37, 38, 39])
-    parser.add_argument('--polarization', type=str, help='The BLE polarization', required=True, choices=['1st', '2nd'])
-    parser.add_argument('--heading', type=str, help='The cardinal direction', required=True, choices=['east', 'north', 'south', 'west'])
+    parser.add_argument('--anchor', type=int, help='The ID of the anchor node', required=True, choices=[6501, 6502, 6503, 6504, -1])
+    parser.add_argument('--channel', type=int, help='The BLE channel', required=True, choices=[37, 38, 39, -1])
+    parser.add_argument('--polarization', type=str, help='The BLE polarization', required=True, choices=['1st', '2nd', 'mean'])
+    parser.add_argument('--heading', type=str, help='The cardinal direction', required=True, choices=['east', 'north', 'south', 'west', 'all'])
     parser.add_argument('--preprocess', action='store_true', help='Preprocess the data removing the outliers')
     parser.add_argument('--positional', action='store_true', help='Group the data by the (X, Y) coordinates instead of the distance')
 
@@ -38,24 +97,7 @@ def main():
     channel = args.channel
     polarization = args.polarization
 
-    # Load the static dataset
-    data_file_path = f"data_storage/Dataset_AoA_RSS_BLE51/static/beacons/beacons_static_{heading}.txt"
-    data = load_raw_dataset(data_file_path)
-
-    # Load the ground truth dataset for static
-    gt_file_path = f"data_storage/Dataset_AoA_RSS_BLE51/static/gt/gt_static_{heading}.txt"
-    gt = load_gt_dataset(gt_file_path)
-
-    df = pd.merge_asof(data, gt, left_on='Epoch_Time', right_on='Start_Time', direction='backward')
-    df = df[df['Epoch_Time'] <= df['End_Time']]
-    df = df.reset_index(drop=True)
-
-    grid = load_grid_dataset()
-    anchors = create_anchors_dataset()
-
-    # Merge the data with the grid and anchors data (grid and anchors data are ground truth data)
-    df = pd.merge(df, grid, how='inner', on=['X', 'Y', 'Anchor_ID'])
-    df = pd.merge(df, anchors, how='inner', on='Anchor_ID')
+    df = create_df()
 
     # Convert cm distances to meters
     df['X'] = df['X'] / 100
@@ -66,25 +108,33 @@ def main():
     # Compute the euclidean distance between the anchor (Anchor_x, Anchor_y) and the tag (X, Y) coordinates
     df['Distance'] = ((df['X'] - df['Anchor_x'])**2 + (df['Y'] - df['Anchor_y'])**2)**0.5
     
-    # Take only the Channel = 37 with the 2nd polarization
-    df = df[df['Channel'] == channel]
-    # Take only the Anchor_ID = 6501
-    df = df[df['Anchor_ID'] == anchor]
-    df = df.rename(columns={f'RSS_{polarization}_Pol': 'RSS'})
+    if anchor != -1:
+        df = df[df['Anchor_ID'] == anchor]
+    if channel != -1:
+        df = df[df['Channel'] == channel]
+    if polarization == 'mean':
+        df['RSS'] = (df['RSS_1st_Pol'] + df['RSS_2nd_Pol']) / 2
+    else:
+        df['RSS'] = df[f'RSS_{polarization}_Pol']
+    if heading != 'all':
+        df = df[df['Heading'] == cardinal_directions[heading]]
 
     if args.positional:
         # Set an ID for each (X, Y) coordinate
         df['Pos_ID'] = df.groupby(['X', 'Y']).ngroup()
         if args.preprocess:
             # For each ID take the Z score of RSS_2nd_Pol less than 2
-            df['zscore'] = df.groupby('Pos_ID')['RSS'].transform(lambda x: stats.zscore(x))
-            df = df[df['zscore'].abs() < 2]
+            df['zscore_RSS'] = df.groupby('Distance')['RSS'].transform(lambda x: stats.zscore(x))
+            df = df[df['zscore_RSS'].abs() < 2]
+            df['zscore_AoA_Az'] = df.groupby('Pos_ID')['AoA_Az'].transform(lambda x: stats.zscore(x))
+            df = df[df['zscore_AoA_Az'].abs() < 2]
         df['RSS_mean'] = df.groupby('Pos_ID')['RSS'].transform('mean')
     else:
         if args.preprocess:
-            # For each Distance take the Z score of RSS_2nd_Pol less than 2
-            df['zscore'] = df.groupby('Distance')['RSS'].transform(lambda x: stats.zscore(x))
-            df = df[df['zscore'].abs() < 2]
+            df['zscore_RSS'] = df.groupby('Distance')['RSS'].transform(lambda x: stats.zscore(x))
+            df = df[df['zscore_RSS'].abs() < 2]
+            df['zscore_AoA_Az'] = df.groupby(['X', 'Y'])['AoA_Az'].transform(lambda x: stats.zscore(x))
+            df = df[df['zscore_AoA_Az'].abs() < 2]
         df['RSS_mean'] = df.groupby('Distance')['RSS'].transform('mean')
     
     # sort the data by the Distance
@@ -93,14 +143,17 @@ def main():
 
     # Plot the Ground Truth Static Points and Anchors
     plt.figure(num=1)
-    plt.scatter(gt['X'] / 100, gt['Y'] / 100, c='blue', marker='o', label='GT Points')
-    plt.scatter(anchors[anchors['Anchor_ID'] == anchor]['Anchor_x'] / 100, anchors[anchors['Anchor_ID'] == anchor]['Anchor_y'] / 100, c='red', marker='o', s=100, label='Anchor')
-    plt.scatter(anchors[anchors['Anchor_ID'] != anchor]['Anchor_x'] / 100, anchors[anchors['Anchor_ID'] != anchor]['Anchor_y'] / 100, c='red', marker='o', label='Other Anchors')
-    # Annotating points with labels
-    for i, label in enumerate(anchors['Anchor_ID']):
-        plt.text(anchors['Anchor_x'][i] / 100, anchors['Anchor_y'][i] / 100, label, fontsize=10)
-    # plot an arrow
-    plt.arrow(5.0, 7.5, cardinal_directions[f'{heading}'][0], cardinal_directions[f'{heading}'][1], head_width=0.3, head_length=0.3, fc='black', ec='black')
+    plt.scatter(df['X'], df['Y'], c='blue', marker='o', label='GT Points')
+    plt.scatter(anchor_positions[str(anchor)][0], anchor_positions[str(anchor)][1], c='red', marker='o', s=100, label='Anchor')
+    # other anchors
+    xy = [(x, y) for x, y in anchor_positions.values() if x != anchor_positions[str(anchor)][0] or y != anchor_positions[str(anchor)][1]]        
+    plt.scatter([x for x, y in xy], [y for x, y in xy], c='red', marker='o', label='Other Anchors')
+    # Annotating anchors with labels
+    for anchor_id, (x, y) in anchor_positions.items():
+        plt.text(x, y, anchor_id, fontsize=10)
+    if heading != 'all': 
+        # plot an arrow
+        plt.arrow(5.0, 7.5, cardinal_arrows[f'{heading}'][0], cardinal_arrows[f'{heading}'][1], head_width=0.3, head_length=0.3, fc='black', ec='black')
     # plot the room
     plt.plot([0, 12, 12, 0, 0], [0, 0, 6, 6, 0], 'k-')
     plt.xlim(-2, 14)

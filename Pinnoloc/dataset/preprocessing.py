@@ -59,30 +59,17 @@ class StandardizeDataset(Dataset):
         return (x - mean) / std
     
     def __getitem__(self, idx):
-        item = self.base_dataset[idx]
-        if len(item) == 3:
-            x, y, physics = item
-            if self.mean_input is not None and self.std_input is not None:
-                x_new = self.standardize(x, self.mean_input, self.std_input)
-            else:
-                x_new = x
-            if self.mean_target is not None and self.std_target is not None:
-                y_new = self.standardize(y, self.mean_target, self.std_target)
-            else:
-                y_new = y
-
-            return x_new, y_new, physics
+        x, y = self.base_dataset[idx]
+        if self.mean_input is not None and self.std_input is not None:
+            x_new = self.standardize(x, self.mean_input, self.std_input)
         else:
-            x, y = item
-            if self.mean_input is not None and self.std_input is not None:
-                x_new = self.standardize(x, self.mean_input, self.std_input)
-            else:
-                x_new = x
-            if self.mean_target is not None and self.std_target is not None:
-                y_new = self.standardize(y, self.mean_target, self.std_target)
-            else:
-                y_new = y
-            return x_new, y_new
+            x_new = x
+        if self.mean_target is not None and self.std_target is not None:
+            y_new = self.standardize(y, self.mean_target, self.std_target)
+        else:
+            y_new = y
+
+        return x_new, y_new
     
     def __len__(self):
         return len(self.base_dataset)

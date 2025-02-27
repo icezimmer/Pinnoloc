@@ -57,7 +57,7 @@ class DistanceLoss(torch.nn.Module):
         boundary_collocation = torch.cat((P0, a_collocation), dim=-1)
         return boundary_collocation
 
-    def forward(self, model, inputs, targets, physics_data=None):
+    def forward(self, model, inputs, targets):
         if self.lambda_physics == 0.0:
             output = model(inputs)
             total_loss = self.data_loss_fn(output, targets)
@@ -80,7 +80,7 @@ class DistanceLoss(torch.nn.Module):
                 create_graph=True
             )[0]
 
-            # Differential equation: dz/dP + (ln(10)/(10*path_loss)) * z = 0 if data not standardized, with k = ln(10)/(10*path_loss)
+            # Differential equation: dz/dP + (ln(10)/(10*path_loss_exponent)) * z = 0 if data not standardized, with k = ln(10)/(10*path_loss_exponent)
             # dz/dP + k * z = 0
             # z = sigma_z * z* + mu_z, P = sigma_P * P* + mu_P, z* standardized distance, P* standardized RSSI
             # dz/dP = d(sigma_z * z* + mu_z) / d(sigma_P * P* + mu_P) = (sigma_z / sigma_P) * dz*/dP*
@@ -105,7 +105,7 @@ class DistanceLoss(torch.nn.Module):
         
         return total_loss
     
-    def plot(self, model, inputs, targets, physics_data=None):
+    def plot(self, model, inputs, targets):
         # Collocation points for the physics loss representing RSSI with normal distribution
         P_collocation, _ = self.collocation_points(n_collocation=self.n_collocation, device=inputs.device, n_features=inputs.shape[-1], requires_grad=False)
         import matplotlib.pyplot as plt
@@ -195,7 +195,7 @@ class PositionLoss(torch.nn.Module):
         boundary_collocation = torch.cat((P0, other_collocation), dim=-1)
         return boundary_collocation
 
-    def forward(self, model, inputs, targets, physics_data=None):
+    def forward(self, model, inputs, targets):
         if self.lambda_rss == 0.0 and self.lambda_azimuth == 0.0 and self.lambda_bc == 0.0:
             output = model(inputs)
             total_loss = self.data_loss_fn(output, targets)
@@ -239,7 +239,7 @@ class PositionLoss(torch.nn.Module):
             y_collocation = self.std_target[1:2] * y_collocation + self.mean_target[1:2]
             x_collocation = x_collocation - model.anchor_x
             y_collocation = y_collocation - model.anchor_y
-            distance_2 = torch.pow(x_collocation, 2) + torch.pow(y_collocation, 2)
+            distance_2 = torch.clamp(torch.pow(x_collocation, 2) + torch.pow(y_collocation, 2), min=1e-8)
 
             residual_x = dx_dP + torch.einsum('h,nh->nh', model.k, x_collocation)
             residual_y = dy_dP + torch.einsum('h,nh->nh', model.k, y_collocation)
@@ -328,7 +328,7 @@ class DistanceLossIMG(torch.nn.Module):
         boundary_collocation = torch.cat((P0, a_collocation), dim=-1)
         return boundary_collocation
 
-    def forward(self, model, inputs, targets, physics_data=None):
+    def forward(self, model, inputs, targets):
         if self.lambda_physics == 0.0:
             output = model(inputs)
             total_loss = self.data_loss_fn(output, targets)
@@ -412,7 +412,7 @@ class DistanceLossIMG(torch.nn.Module):
                                      [dz_dP_30, dz_dP_31]])
 
 
-            # Differential equation: dz/dP + (ln(10)/(10*path_loss)) * z = 0 if data not standardized, with k = ln(10)/(10*path_loss)
+            # Differential equation: dz/dP + (ln(10)/(10*path_loss_exponent)) * z = 0 if data not standardized, with k = ln(10)/(10*path_loss_exponent)
             # dz/dP + k * z = 0
             # z = sigma_z * z* + mu_z, P = sigma_P * P* + mu_P, z* standardized distance, P* standardized RSSI
             # dz/dP = d(sigma_z * z* + mu_z) / d(sigma_P * P* + mu_P) = (sigma_z / sigma_P) * dz*/dP*
@@ -443,7 +443,7 @@ class DistanceLossIMG(torch.nn.Module):
         
         return total_loss
     
-    def plot(self, model, inputs, targets, physics_data=None):
+    def plot(self, model, inputs, targets):
         # Collocation points for the physics loss representing RSSI with normal distribution
         P_collocation, _ = self.collocation_points(n_collocation=self.n_collocation, device=inputs.device, n_features=inputs.shape[-1], requires_grad=False)
         import matplotlib.pyplot as plt

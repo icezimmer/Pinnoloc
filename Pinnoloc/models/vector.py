@@ -45,12 +45,12 @@ class DistanceModel(StackedVectorModel):
                  activation=nn.Tanh,
                  use_batchnorm=False, 
                  dropout_rate=0.0,
-                 path_loss=2.0,
+                 path_loss_exponent=2.0,
                  rss_1m=-50.0):
         super(DistanceModel, self).__init__(n_layers, d_input, hidden_units, 1, activation, use_batchnorm, dropout_rate)
 
         log10 = torch.log(torch.as_tensor(10.0, dtype=torch.float32))
-        k = log10 / (10.0 * path_loss)
+        k = log10 / (10.0 * path_loss_exponent)
         self.k = nn.Parameter(k.unsqueeze(0), requires_grad=True)
 
 
@@ -68,7 +68,7 @@ class PositionModel(StackedVectorModel):
                  dropout_rate=0.0,
                  anchor_x=0.0,
                  anchor_y=0.0,
-                 path_loss=2.0,
+                 path_loss_exponent=2.0,
                  rss_1m=-50.0):
         super(PositionModel, self).__init__(n_layers, d_input, hidden_units, 2, activation, use_batchnorm, dropout_rate)
 
@@ -80,7 +80,7 @@ class PositionModel(StackedVectorModel):
         self.register_buffer('anchor_y', anchor_y)
 
         log10 = torch.log(torch.as_tensor(10.0, dtype=torch.float32))
-        k = log10 / (10.0 * path_loss)
+        k = log10 / (10.0 * path_loss_exponent)
         k = torch.as_tensor(k, dtype=torch.float32).unsqueeze(0)
         self.k = nn.Parameter(k, requires_grad=True)
 

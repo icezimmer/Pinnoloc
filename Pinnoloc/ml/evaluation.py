@@ -31,11 +31,7 @@ class EvaluateClassifier:
         self.confusion_matrix_value = None
 
     def _predict(self):
-        for item in tqdm(self.dataloader):
-            if len(item) == 3:
-                input_, target, _ = item
-            else:
-                input_, target = item
+        for input_, target in tqdm(self.dataloader):
             input_ = input_.to(self.device)
             target = target.to(self.device)
 
@@ -123,20 +119,20 @@ class EvaluateRegressor:
 
         # Metric values
         self.mse = None
+        self.rmse = None
+        self.p50 = None
+        self.p75 = None
+        self.p90 = None
         self.mae = None
-        self.min_ae = None  # Min Absolute Error
-        self.max_ae = None  # Max Absolute Error
+        self.min_ae = None
+        self.max_ae = None
+
 
     def _predict(self):
         predictions = []
         targets = []
         
-        for item in tqdm(self.dataloader):
-            if len(item) == 3:
-                input_, target, _ = item  # Handle potential extra dataset info
-            else:
-                input_, target = item
-            
+        for input_, target in tqdm(self.dataloader):            
             input_ = input_.to(self.device)
             target = target.to(self.device)
 
@@ -157,35 +153,55 @@ class EvaluateRegressor:
             predictions = predictions * std + mean
             targets = targets * std + mean
 
-        # Compute metrics using PyTorch
-        errors = torch.abs(predictions - targets)
-        self.mse = torch.mean((predictions - targets) ** 2).item()
-        self.mae = torch.mean(errors).item()
-        self.min_ae = torch.min(errors).item()
-        self.max_ae = torch.max(errors).item()
+        # Compute the Euclidean distances between predictions and targets
+        distances = torch.norm(predictions - targets, p=2, dim=1)  # Shape: (N,)
+
+        # Compute the 50th, 75th, and 90th percentile
+        quantiles = torch.quantile(distances, torch.tensor([0.50, 0.75, 0.90]))
+
+        self.mse    = distances.pow(2).mean().item()         # mean of squared distances
+        self.rmse   = distances.pow(2).mean().sqrt().item()  # root mean squared error
+        self.p50 = quantiles[0].item()                       # 50th percentile
+        self.p75 = quantiles[1].item()                       # 75th percentile
+        self.p90 = quantiles[2].item()                       # 90th percentile
+        self.mae    = distances.mean().item()                # mean of distances (Euclidean)
+        self.min_ae = distances.min().item()                 # min distance
+        self.max_ae = distances.max().item()                 # max distance
 
         print(f"Mean Squared Error (MSE): {self.mse:.6f}")
+        print(f"Root Mean Squared Error (RMSE): {self.rmse:.6f}")
+        print(f"50th Percentile: {self.p50:.6f}")
+        print(f"75th Percentile: {self.p75:.6f}")
+        print(f"90th Percentile: {self.p90:.6f}")
         print(f"Mean Absolute Error (MAE): {self.mae:.6f}")
         print(f"Min Absolute Error (MinAE): {self.min_ae:.6f}")
         print(f"Max Absolute Error (MaxAE): {self.max_ae:.6f}")
 
         if saving_path is not None:
-            self._plot(saving_path, predictions, targets)
+            self._plot(saving_path)
 
     def reset(self):
         """Resets the stored metric values."""
         self.mse = None
+        self.rmse = None
+        self.p50 = None
+        self.p75 = None
+        self.p90 = None
         self.mae = None
         self.min_ae = None
         self.max_ae = None
 
-    def _plot(self, saving_path, predictions, targets):
+    def _plot(self, saving_path):
         """Save metrics and plot results."""
         metrics_path = os.path.join(saving_path, 'metrics.json')
         plot_path = os.path.join(saving_path, 'regression_plot.png')
 
         metrics = {
             "Mean Squared Error": self.mse,
+            "Root Mean Squared Error": self.rmse,
+            "50th Percentile": self.p50,
+            "75th Percentile": self.p75,
+            "90th Percentile": self.p90,
             "Mean Absolute Error": self.mae,
             "Min Absolute Error": self.min_ae,
             "Max Absolute Error": self.max_ae
@@ -194,17 +210,3 @@ class EvaluateRegressor:
         os.makedirs(os.path.dirname(metrics_path), exist_ok=True)
         with open(metrics_path, 'w') as f:
             json.dump(metrics, f, indent=4)
-
-        # Convert to CPU for plotting
-        predictions = predictions.cpu()
-        targets = targets.cpu()
-
-        # Plot Predictions vs Targets
-        plt.figure(figsize=(6, 6))
-        plt.scatter(targets, predictions, alpha=0.5)
-        plt.plot([targets.min(), targets.max()], [targets.min(), targets.max()], color='red', linestyle='dashed')
-        plt.xlabel("True Values")
-        plt.ylabel("Predicted Values")
-        plt.title("Regression Predictions vs True Values")
-        plt.savefig(plot_path)
-        plt.close()

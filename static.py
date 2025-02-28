@@ -31,35 +31,24 @@ anchor_positions = {
 }
 
 
-def create_df():
+def create_df(heading):
 
-    def load_gt():
-        def load_gt_(cardinal_direction, label):
-            gt = load_gt_dataset(f'data_storage/Dataset_AoA_RSS_BLE51/static/gt/gt_static_{cardinal_direction}.txt')
-            gt['Heading'] = label
-            return gt
-        
-        gt_list = [load_gt_(cardinal_direction, label) for cardinal_direction, label in cardinal_directions.items()]
-        return gt_list
+    def load_gt(heading):
+        gt = load_gt_dataset(f'data_storage/Dataset_AoA_RSS_BLE51/static/gt/gt_static_{heading}.txt')
+        gt['Heading'] = cardinal_directions[heading]
+        return gt
 
 
-    def load_data():
-        def load_data_(cardinal_direction):
-            data = load_raw_dataset(f'data_storage/Dataset_AoA_RSS_BLE51/static/beacons/beacons_static_{cardinal_direction}.txt')
-            return data
-        
-        # Create a list of dataframes with the data for each cardinal direction
-        data_list = [load_data_(cardinal_direction) for cardinal_direction, _ in cardinal_directions.items()]
-        return data_list
+    def load_data(heading):
+        data = load_raw_dataset(f'data_storage/Dataset_AoA_RSS_BLE51/static/beacons/beacons_static_{heading}.txt')
+        return data
     
-    gt_list = load_gt()
-    data_list = load_data()
+    gt = load_gt(heading)
+    data = load_data(heading)
     # Merge the data with the ground truth data
-    df_list = [pd.merge_asof(data, gt, left_on='Epoch_Time', right_on='Start_Time', direction='backward') for data, gt in zip(data_list, gt_list)]
+    df = pd.merge_asof(data, gt, left_on='Epoch_Time', right_on='Start_Time', direction='backward')
     # Filter the rows where the epoch time is within the interval [Start_Time, End_Time]
-    df_list = [df[df['Epoch_Time'] <= df['End_Time']] for df in df_list]
-    # Concatenate the dataframes
-    df = pd.concat(df_list)
+    df = df[df['Epoch_Time'] <= df['End_Time']]
     # Sort the data by the epoch time
     df = df.sort_values(by='Epoch_Time')
     # Reset the index
@@ -82,7 +71,7 @@ def parse_args():
     parser.add_argument('--anchor', type=int, help='The ID of the anchor node', required=True, choices=[6501, 6502, 6503, 6504, -1])
     parser.add_argument('--channel', type=int, help='The BLE channel', required=True, choices=[37, 38, 39, -1])
     parser.add_argument('--polarization', type=str, help='The BLE polarization', required=True, choices=['1st', '2nd', 'mean'])
-    parser.add_argument('--heading', type=str, help='The cardinal direction', required=True, choices=['east', 'north', 'south', 'west', 'all'])
+    parser.add_argument('--heading', type=str, help='The cardinal direction', required=True, choices=['east', 'north', 'south', 'west'])
     parser.add_argument('--preprocess', action='store_true', help='Preprocess the data removing the outliers')
     parser.add_argument('--positional', action='store_true', help='Group the data by the (X, Y) coordinates instead of the distance')
 
@@ -97,7 +86,7 @@ def main():
     channel = args.channel
     polarization = args.polarization
 
-    df = create_df()
+    df = create_df(heading)
 
     # Convert cm distances to meters
     df['X'] = df['X'] / 100
@@ -116,8 +105,6 @@ def main():
         df['RSS'] = (df['RSS_1st_Pol'] + df['RSS_2nd_Pol']) / 2
     else:
         df['RSS'] = df[f'RSS_{polarization}_Pol']
-    if heading != 'all':
-        df = df[df['Heading'] == cardinal_directions[heading]]
 
     if args.positional:
         # Set an ID for each (X, Y) coordinate

@@ -94,10 +94,10 @@ def main():
     reduce_plateau = 0.1
     num_epochs = 100
     lambda_data = 1.0
-    lambda_rss = 0.5
-    lambda_azimuth = 0.5
+    lambda_rss = 0.0001
+    lambda_azimuth = 0.0001
     lambda_bc = 0.0
-    n_collocation = 1000
+    n_collocation = 512
 
     logging.info(f"Setting seed: {seed}")
     set_seed(seed)
@@ -144,9 +144,10 @@ def main():
     test_dataloader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
     logging.info(f'Initializing model.')
-    model = PositionModel(n_layers=n_layers, d_input=d_input, hidden_units=hidden_units,
-                          anchor_x=anchor_x, anchor_y=anchor_y,
-                          path_loss_exponent=path_loss_exponent, rss_1m=rss_1m)
+    # model = PositionModel(n_layers=n_layers, d_input=d_input, hidden_units=hidden_units,
+    #                       anchor_x=anchor_x, anchor_y=anchor_y,
+    #                       path_loss_exponent=path_loss_exponent, rss_1m=rss_1m)
+    model = PositionModel(n_layers=n_layers, d_input=d_input, hidden_units=hidden_units)
 
     # print_num_trainable_params(model)
 

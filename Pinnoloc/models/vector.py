@@ -66,28 +66,30 @@ class PositionModel(StackedVectorModel):
                  activation=nn.Tanh,
                  use_batchnorm=False, 
                  dropout_rate=0.0,
-                 anchor_x=0.0,
-                 anchor_y=0.0,
-                 path_loss_exponent=2.0,
-                 rss_1m=-50.0):
+                 anchor_x=[0.0, 6.0, 12.0, 6.0],
+                 anchor_y=[3.0, 0.0, 3.0, 6.0],
+                 path_loss_exponent=[2.0, 2.0, 2.0, 2.0],
+                 rss_1m=[-50.0, -50.0, -50.0, -50.0]):
         super(PositionModel, self).__init__(n_layers, d_input, hidden_units, 2, activation, use_batchnorm, dropout_rate)
 
         # Define buffer of model
-        anchor_x = torch.as_tensor(anchor_x, dtype=torch.float32).unsqueeze(0)
+        anchor_x = torch.as_tensor(anchor_x, dtype=torch.float32)
         self.register_buffer('anchor_x', anchor_x)
 
-        anchor_y = torch.as_tensor(anchor_y, dtype=torch.float32).unsqueeze(0)
+        anchor_y = torch.as_tensor(anchor_y, dtype=torch.float32)
         self.register_buffer('anchor_y', anchor_y)
 
+        path_loss_exponent = torch.as_tensor(path_loss_exponent, dtype=torch.float32)
         log10 = torch.log(torch.as_tensor(10.0, dtype=torch.float32))
         k = log10 / (10.0 * path_loss_exponent)
-        k = torch.as_tensor(k, dtype=torch.float32).unsqueeze(0)
+        k = torch.as_tensor(k, dtype=torch.float32)
+        print(k)
         self.k = nn.Parameter(k, requires_grad=True)
 
-        rss_1m = torch.as_tensor(rss_1m, dtype=torch.float32).unsqueeze(0)
+        rss_1m = torch.as_tensor(rss_1m, dtype=torch.float32)
         self.rss_1m = nn.Parameter(rss_1m, requires_grad=True)
 
-        d_0 = torch.as_tensor(1.0, dtype=torch.float32).unsqueeze(0)
+        d_0 = torch.as_tensor([1.0, 1.0, 1.0, 1.0], dtype=torch.float32)
         self.d_0 = nn.Parameter(d_0, requires_grad=True)
 
     # @property

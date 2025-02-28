@@ -20,35 +20,24 @@ cardinal_directions = {
 }
 
 
-def create_df():
+def create_df(heading):
 
-    def load_gt():
-        def load_gt_(cardinal_direction, label):
-            gt = load_gt_dataset(f'data_storage/Dataset_AoA_RSS_BLE51/static/gt/gt_static_{cardinal_direction}.txt')
-            gt['Heading'] = label
-            return gt
-        
-        gt_list = [load_gt_(cardinal_direction, label) for cardinal_direction, label in cardinal_directions.items()]
-        return gt_list
+    def load_gt(heading):
+        gt = load_gt_dataset(f'data_storage/Dataset_AoA_RSS_BLE51/static/gt/gt_static_{heading}.txt')
+        gt['Heading'] = cardinal_directions[heading]
+        return gt
 
 
-    def load_data():
-        def load_data_(cardinal_direction):
-            data = load_raw_dataset(f'data_storage/Dataset_AoA_RSS_BLE51/static/beacons/beacons_static_{cardinal_direction}.txt')
-            return data
-        
-        # Create a list of dataframes with the data for each cardinal direction
-        data_list = [load_data_(cardinal_direction) for cardinal_direction, _ in cardinal_directions.items()]
-        return data_list
+    def load_data(heading):
+        data = load_raw_dataset(f'data_storage/Dataset_AoA_RSS_BLE51/static/beacons/beacons_static_{heading}.txt')
+        return data
     
-    gt_list = load_gt()
-    data_list = load_data()
+    gt = load_gt(heading)
+    data = load_data(heading)
     # Merge the data with the ground truth data
-    df_list = [pd.merge_asof(data, gt, left_on='Epoch_Time', right_on='Start_Time', direction='backward') for data, gt in zip(data_list, gt_list)]
+    df = pd.merge_asof(data, gt, left_on='Epoch_Time', right_on='Start_Time', direction='backward')
     # Filter the rows where the epoch time is within the interval [Start_Time, End_Time]
-    df_list = [df[df['Epoch_Time'] <= df['End_Time']] for df in df_list]
-    # Concatenate the dataframes
-    df = pd.concat(df_list)
+    df = df[df['Epoch_Time'] <= df['End_Time']]
     # Sort the data by the epoch time
     df = df.sort_values(by='Epoch_Time')
     # Reset the index
@@ -64,7 +53,7 @@ def create_df():
     return df
 
 
-def preprocess_df(df, anchor, channel, polarization, heading, preprocess):
+def preprocess_df(df, anchor, channel, polarization, preprocess):
     # Convert cm distances to meters
     df['X'] = df['X'] / 100
     df['Y'] = df['Y'] / 100
@@ -85,31 +74,61 @@ def preprocess_df(df, anchor, channel, polarization, heading, preprocess):
 
     df['AoA_Az'] = np.arctan2(np.sin(df['AoA_Az']), np.cos(df['AoA_Az']))  # set the angle between -pi and pi
 
-    if anchor != -1:
-        df = df[df['Anchor_ID'] == anchor]
     if channel != -1:
         df = df[df['Channel'] == channel]
     if polarization == 'mean':
         df['RSS'] = (df['RSS_1st_Pol'] + df['RSS_2nd_Pol']) / 2
     else:
         df['RSS'] = df[f'RSS_{polarization}_Pol']
-    if heading != 'all':
-        df = df[df['Heading'] == cardinal_directions[heading]]
 
     if preprocess:
         # For each Distance take the Z score of RSS less than 2
         df['Distance'] = ((df['X'] - df['Anchor_x'])**2 + (df['Y'] - df['Anchor_y'])**2)**0.5
-        df['zscore_RSS'] = df.groupby('Distance')['RSS'].transform(lambda x: stats.zscore(x))
+        df['zscore_RSS'] = df.groupby(['Anchor_ID', 'Distance'])['RSS'].transform(lambda x: stats.zscore(x))
         df = df[df['zscore_RSS'].abs() < 2]
-        df['zscore_AoA_Az'] = df.groupby(['X', 'Y'])['AoA_Az'].transform(lambda x: stats.zscore(x))
+        df['zscore_AoA_Az'] = df.groupby(['Anchor_ID', 'X', 'Y'])['AoA_Az'].transform(lambda x: stats.zscore(x))
         df = df[df['zscore_AoA_Az'].abs() < 2]
 
-    # Select polarization
-    df['feature/RSS'] = df['RSS']
-    df['feature/AoA_Az'] = df['AoA_Az']
+    print(df)
+    pause = input("Press Enter to continue...")
 
-    df['target/X'] = df['X']
-    df['target/Y'] = df['Y']
+    df["Epoch_Time_Buffer"] = (df["Epoch_Time"] // 100).astype(int)
+
+    grouped = (
+        df.groupby(["Epoch_Time_Buffer", "X", "Y", "Anchor_ID"], as_index=False)
+        .agg({
+          "RSS": "first", # "RSS": lambda x: x.mode().iloc[0],  # Take first mode if tie
+          "AoA_Az": "mean"
+      })
+    )
+
+    df_wide = grouped.pivot(
+    index=["Epoch_Time_Buffer", "X", "Y"], 
+    columns="Anchor_ID", 
+    values=["RSS", "AoA_Az"]
+    )
+    print(df_wide)
+    pause = input("Press Enter to continue...")
+
+    df_wide = (
+        df_wide
+        .sort_values(by="Epoch_Time_Buffer")
+        .groupby(["X", "Y"], group_keys=False)
+        .apply(lambda g: g.ffill().bfill())
+    )
+    print(df_wide)
+    pause = input("Press Enter to continue...")
+
+    # Rset the index to have 'X' and 'Y' as columns
+    df_wide = df_wide.reset_index()
+    print(df_wide)
+    pause = input("Press Enter to continue...")
+
+    # df['feature/RSS'] = df['RSS']
+    # df['feature/AoA_Az'] = df['AoA_Az']
+
+    # df['target/X'] = df['X']
+    # df['target/Y'] = df['Y']
 
     # # Scatter plot of AoA_Az_x vs AoA_Az_y
     # import matplotlib.pyplot as plt
@@ -120,7 +139,7 @@ def preprocess_df(df, anchor, channel, polarization, heading, preprocess):
     # plt.ylabel('sin(AoA_Az)')
     # plt.show()
 
-    return df
+    return df_wide
 
 
 # set a parse_args function to parse the arguments
@@ -131,7 +150,7 @@ def parse_args():
     parser.add_argument('--anchor', type=int, help='The ID of the anchor node', required=True, choices=[6501, 6502, 6503, 6504, -1])
     parser.add_argument('--channel', type=int, help='The BLE channel', required=True, choices=[37, 38, 39, -1])
     parser.add_argument('--polarization', type=str, help='The BLE polarization', required=True, choices=['1st', '2nd', 'mean'])
-    parser.add_argument('--heading', type=str, help='The cardinal direction', required=True, choices=['east', 'north', 'south', 'west', 'all'])
+    parser.add_argument('--heading', type=str, help='The cardinal direction', required=True, choices=['east', 'north', 'south', 'west'])
     parser.add_argument('--preprocess', action='store_true', help='Preprocess the data removing the outliers')
 
     return parser.parse_args()
@@ -154,13 +173,21 @@ def main():
     logging.info(f"Setting seed: {seed}")
     set_seed(seed)
 
-    df = create_df()
+    df = create_df(heading)
     print(df)
-    df = preprocess_df(df, anchor=anchor, channel=channel, polarization=polarization, heading=heading, preprocess=preprocess)
+    df = preprocess_df(df, anchor=anchor, channel=channel, polarization=polarization, preprocess=preprocess)
     print(df)
 
-    feature_columns = [col for col in df.columns if col.startswith('feature/')]
-    target_column = [col for col in df.columns if col.startswith('target/')]
+    # feature_columns = [col for col in df.columns if col.startswith('feature/')]
+    # target_column = [col for col in df.columns if col.startswith('target/')]
+    # dataset = BLEDataset(
+    #     dataframe=df,
+    #     feature_columns=feature_columns,
+    #     target_column=target_column
+    #     )
+
+    feature_columns = ['RSS', 'AoA_Az']
+    target_column = ['X', 'Y']
     dataset = BLEDataset(
         dataframe=df,
         feature_columns=feature_columns,

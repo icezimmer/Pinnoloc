@@ -126,7 +126,7 @@ def main():
     logging.disable(logging.CRITICAL)
 
     # create a csv file to save the hyperparameters and scores
-    file_path = os.path.join('configs', f'ble_position_static_{develop}_static_{test}.csv')
+    file_path = os.path.join('results', f'ble_position_static_{develop}_static_{test}.csv')
     os.makedirs(os.path.dirname(file_path), exist_ok=True)
     # Check if the file exists
     file_exists = os.path.exists(file_path)

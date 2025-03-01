@@ -131,7 +131,7 @@ def main():
     # Check if the file exists
     file_exists = os.path.exists(file_path)
 
-    # Open the file in append mode
+    # Open the file in append model
     with open(file_path, 'a', newline='') as f:
         writer = csv.writer(f)
         

@@ -1,27 +1,25 @@
-# Random search on the hyperparameters of the model
-# the hyperparameters are saved in a dictionary
-# the grid search produces a list of dictionaries
-
 import random
 import numpy as np
+from Pinnoloc.utils.experiments import set_seed
 
-def random_search(hyperparameters, n=10):
+
+def random_search(seed, hyperparameters, n_configs):
     """
     Random search on the hyperparameters of the model
     the hyperparameters are saved in a dictionary
     the grid search produces a list of dictionaries
 
-    Parameters:
-    hyperparameters: dictionary
-        dictionary of hyperparameters
-    n: int
-        number of random searches
-
-    Returns:
-    list of dictionaries
+    -Input:
+        - hyperparameters: dictionary with the hyperparameters
+        - n_configs: number of configurations to generate
+    -Output:
+        - list of dictionaries with the hyperparameters
+    
     """
+    set_seed(seed)
+
     hyperparameters_list = []
-    for _ in range(n):
+    for _ in range(n_configs):
         hyperparameters_copy = hyperparameters.copy()
         for key, value in hyperparameters_copy.items():
             if type(value) == list:

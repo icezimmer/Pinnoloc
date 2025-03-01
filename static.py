@@ -131,10 +131,10 @@ def main():
     # Plot the Ground Truth Static Points and Anchors
     plt.figure(num=1)
     plt.scatter(df['X'], df['Y'], c='blue', marker='o', label='GT Points')
-    plt.scatter(anchor_positions[str(anchor)][0], anchor_positions[str(anchor)][1], c='red', marker='o', s=100, label='Anchor')
+    plt.scatter(anchor_positions[str(anchor)][0], anchor_positions[str(anchor)][1], c='red', marker='s', s=100, label='Anchor')
     # other anchors
     xy = [(x, y) for x, y in anchor_positions.values() if x != anchor_positions[str(anchor)][0] or y != anchor_positions[str(anchor)][1]]        
-    plt.scatter([x for x, y in xy], [y for x, y in xy], c='red', marker='o', label='Other Anchors')
+    plt.scatter([x for x, y in xy], [y for x, y in xy], c='red', marker='s', label='Other Anchors')
     # Annotating anchors with labels
     for anchor_id, (x, y) in anchor_positions.items():
         plt.text(x, y, anchor_id, fontsize=10)

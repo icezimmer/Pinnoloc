@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 from data_storage.Dataset_AoA_RSS_BLE51.data_utils import load_raw_dataset, load_gt_dataset, load_grid_dataset, create_anchors_dataset
-from Pinnoloc.dataset.ble_dataset import BLEDataset
+from Pinnoloc.data.ble_dataset import BLEDataset
 from Pinnoloc.utils.split_data import random_split_dataset
 from Pinnoloc.utils.saving import save_data
 from Pinnoloc.utils.experiments import set_seed
@@ -11,20 +11,10 @@ from scipy import stats
 import argparse
 
 
-# Create dictionary with the cardinal directions and the corresponding labels
-cardinal_directions = {
-    'east': 0,
-    'north': 1,
-    'south': 2,
-    'west': 3
-}
-
-
 def create_df(heading):
 
     def load_gt(heading):
         gt = load_gt_dataset(f'data_storage/Dataset_AoA_RSS_BLE51/static/gt/gt_static_{heading}.txt')
-        gt['Heading'] = cardinal_directions[heading]
         return gt
 
 
@@ -53,7 +43,7 @@ def create_df(heading):
     return df
 
 
-def preprocess_df(df, anchor, channel, polarization, preprocess):
+def preprocess_df(df, channel, polarization, preprocess, buffer):
     # Convert cm distances to meters
     df['X'] = df['X'] / 100
     df['Y'] = df['Y'] / 100
@@ -92,13 +82,13 @@ def preprocess_df(df, anchor, channel, polarization, preprocess):
     print(df)
     pause = input("Press Enter to continue...")
 
-    df["Epoch_Time_Buffer"] = (df["Epoch_Time"] // 100).astype(int)
+    df["Epoch_Time_Buffer"] = (df["Epoch_Time"] // buffer).astype(int)
 
     grouped = (
         df.groupby(["Epoch_Time_Buffer", "X", "Y", "Anchor_ID"], as_index=False)
         .agg({
-          "RSS": "first", # "RSS": lambda x: x.mode().iloc[0],  # Take first mode if tie
-          "AoA_Az": "mean"
+          "RSS": "last", # "RSS": lambda x: x.mode().iloc[0],  # Take first mode if tie
+          "AoA_Az": "last"
       })
     )
 
@@ -130,27 +120,18 @@ def preprocess_df(df, anchor, channel, polarization, preprocess):
     # df['target/X'] = df['X']
     # df['target/Y'] = df['Y']
 
-    # # Scatter plot of AoA_Az_x vs AoA_Az_y
-    # import matplotlib.pyplot as plt
-    # plt.figure(num=1)
-    # plt.scatter(df['feature/AoA_Az_x'], df['feature/AoA_Az_y'])
-    # plt.grid(True)
-    # plt.xlabel('cos(AoA_Az)')
-    # plt.ylabel('sin(AoA_Az)')
-    # plt.show()
-
     return df_wide
 
 
 # set a parse_args function to parse the arguments
 def parse_args():
     # Create the parser
-    parser = argparse.ArgumentParser(description='Path Loss Exponent Estimation')
+    parser = argparse.ArgumentParser(description='Build BLE Position Static dataset')
     parser.add_argument('--seed', type=int, help='Random seed', default=42)
-    parser.add_argument('--anchor', type=int, help='The ID of the anchor node', required=True, choices=[6501, 6502, 6503, 6504, -1])
+    parser.add_argument('--heading', type=str, help='The cardinal direction', required=True, choices=['east', 'north', 'south', 'west'])
     parser.add_argument('--channel', type=int, help='The BLE channel', required=True, choices=[37, 38, 39, -1])
     parser.add_argument('--polarization', type=str, help='The BLE polarization', required=True, choices=['1st', '2nd', 'mean'])
-    parser.add_argument('--heading', type=str, help='The cardinal direction', required=True, choices=['east', 'north', 'south', 'west'])
+    parser.add_argument('--buffer', type=int, help='The buffer time in milliseconds (ms)', required=True)
     parser.add_argument('--preprocess', action='store_true', help='Preprocess the data removing the outliers')
 
     return parser.parse_args()
@@ -158,24 +139,24 @@ def parse_args():
 
 def main():
     logging.basicConfig(level=logging.INFO)
-
-    task_name = 'ble_position'
     
     # Take the arguments from the command line
     args = parse_args()
     seed = args.seed
-    anchor = args.anchor
     channel = args.channel
     polarization = args.polarization
     heading = args.heading
     preprocess = args.preprocess
+    buffer = args.buffer
+
+    task_name = f'ble_position_static_{heading}'
 
     logging.info(f"Setting seed: {seed}")
     set_seed(seed)
 
     df = create_df(heading)
     print(df)
-    df = preprocess_df(df, anchor=anchor, channel=channel, polarization=polarization, preprocess=preprocess)
+    df = preprocess_df(df, channel=channel, polarization=polarization, preprocess=preprocess, buffer=buffer)
     print(df)
 
     # feature_columns = [col for col in df.columns if col.startswith('feature/')]

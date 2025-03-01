@@ -87,7 +87,8 @@ class PositionModel(StackedVectorModel):
         self.k = nn.Parameter(k, requires_grad=True)
 
         rss_1m = torch.as_tensor(rss_1m, dtype=torch.float32)
-        self.rss_1m = nn.Parameter(rss_1m, requires_grad=True)
+        # self.rss_1m = nn.Parameter(rss_1m, requires_grad=True)
+        self.register_buffer('rss_1m', rss_1m)
 
         d_0 = torch.as_tensor([1.0, 1.0, 1.0, 1.0], dtype=torch.float32)
         self.d_0 = nn.Parameter(d_0, requires_grad=True)

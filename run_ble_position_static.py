@@ -11,16 +11,17 @@ from Pinnoloc.ml.optimization import setup_optimizer
 from Pinnoloc.ml.loss import PositionLoss
 from Pinnoloc.ml.training import TrainPhysicsModel
 from Pinnoloc.ml.evaluation import EvaluateRegressor
-from Pinnoloc.dataset.preprocessing import compute_mean_std, StandardizeDataset
+from Pinnoloc.ml.selection import random_search
+from Pinnoloc.data.preprocessing import compute_mean_std, StandardizeDataset
 from Pinnoloc.utils.saving import load_data, save_hyperparameters, update_results, update_hyperparameters
 from Pinnoloc.utils.check_device import check_model_device
 from Pinnoloc.utils.experiments import read_yaml_to_dict
-# from codecarbon import EmissionsTracker
 from Pinnoloc.utils.saving import save_data
 import numpy as np
 from sklearn.linear_model import LinearRegression
 import matplotlib.pyplot as plt
 from tqdm import tqdm
+import argparse
 
 
 cardinal_directions = {
@@ -37,6 +38,7 @@ anchor_positions = {
     '6503': (12.0, 3.0),
     '6504': (6.0, 6.0)
 }
+
 
 def path_loss_extimation(dataloader, anchor_x, anchor_y):
     pa_list = []
@@ -71,33 +73,75 @@ def path_loss_extimation(dataloader, anchor_x, anchor_y):
     return path_loss_exponent, rss_1m
 
 
+def parse_args():
+    # Create the parser
+    parser = argparse.ArgumentParser(description='Run BLE Position Static')
+    parser.add_argument('--seed_search', type=int, help='Random seed for hyperparameter search', default=42)
+    parser.add_argument('--seed_run', type=int, help='Random seed for model run', default=42)
+    parser.add_argument('--n_configs', type=int, help='Number of configurations to generate', default=10)
+    parser.add_argument('--device', type=str, help='The device to run the model', default='cpu')
+    parser.add_argument('--heading', type=str, help='The cardinal direction', required=True, choices=['east', 'north', 'south', 'west'])
+
+    return parser.parse_args()
+
+
 def main():
+    args = parse_args()
+    seed_search = args.seed_search
+    seed_run = args.seed_run
+    n_configs = args.n_configs
+    device = args.device
+    heading = args.heading
+
+    hiperparameters = {
+        'n_layers': [2],
+        'hidden_units': [[32]],
+        'batch_size': [256],
+        'lr': [0.1],
+        'weight_decay': [0.01],
+        'val_split': [0.2],
+        'patience': [10],
+        'reduce_plateau': [0.1],
+        'num_epochs': [500],
+        # 'lambda_data': [1.0],
+        # 'lambda_rss': [0.0],
+        # 'lambda_azimuth': [0.0],
+        # 'lambda_bc': [0.0],
+        'lambda_data': (0.0, 1.0),
+        'lambda_rss': (0.0, 1.0),
+        'lambda_azimuth': (0.0, 1.0),
+        'lambda_bc': (0.0, 1.0),
+        'n_collocation': [512]
+    }
+
+    hyperparameters_list = random_search(seed=seed_search, hyperparameters=hiperparameters, n_configs=n_configs)
+
+    for hyperparameters in hyperparameters_list:
+        print(hyperparameters)
+        run_ble_position_static(seed_run, device, heading, hyperparameters)
+
+
+def run_ble_position_static(seed, device, heading, hyperparameters):
     logging.basicConfig(level=logging.INFO)
 
-    task_name = 'ble_position'
 
-    seed = 42
-    device = 'cpu'
-    n_layers = 2
-    hidden_units = [256]
-    #
-    heading = 'east'  # to plot the arrow
-    #
-    # path_loss_exponent = 1.4335
-    # rss_1m = -60.9078
-    anchor_x, anchor_y = anchor_positions['6503']
-    batch_size = 256
-    lr = 0.1
-    weight_decay = 0.01
-    val_split = 0.2
-    patience = 10
-    reduce_plateau = 0.1
-    num_epochs = 100
-    lambda_data = 1.0
-    lambda_rss = 0.0001
-    lambda_azimuth = 0.0001
-    lambda_bc = 0.0
-    n_collocation = 512
+    task_name = f'ble_position_static_{heading}'
+    logging.info(f"Running {task_name}.")
+
+    n_layers = hyperparameters['n_layers']
+    hidden_units = hyperparameters['hidden_units']
+    batch_size = hyperparameters['batch_size']
+    lr = hyperparameters['lr']
+    weight_decay = hyperparameters['weight_decay']
+    val_split = hyperparameters['val_split']
+    patience = hyperparameters['patience']
+    reduce_plateau = hyperparameters['reduce_plateau']
+    num_epochs = hyperparameters['num_epochs']
+    lambda_data = hyperparameters['lambda_data']
+    lambda_rss = hyperparameters['lambda_rss']
+    lambda_azimuth = hyperparameters['lambda_azimuth']
+    lambda_bc = hyperparameters['lambda_bc']
+    n_collocation = hyperparameters['n_collocation']
 
     logging.info(f"Setting seed: {seed}")
     set_seed(seed)
@@ -117,7 +161,7 @@ def main():
     logging.info('Standardizing datasets.')
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False)
 
-    path_loss_exponent, rss_1m = path_loss_extimation(train_dataloader, anchor_x, anchor_y)
+    # path_loss_exponent, rss_1m = path_loss_extimation(train_dataloader, anchor_x, anchor_y)
 
     x_mean, x_std, y_mean, y_std = compute_mean_std(train_dataloader)
     print('input_mean: ', x_mean)
@@ -189,8 +233,8 @@ def main():
             target = target.to(device)
 
             output = model(input_)  # Model outputs continuous values (not logits)
-            predictions.append(output)  # Keep as 1D tensor
-            targets.append(target)  # Keep as 1D tensor
+            predictions.append(output)
+            targets.append(target)
 
         # Concatenate all tensors into one for proper calculations
         predictions, targets = torch.cat(predictions, dim=0), torch.cat(targets, dim=0)
@@ -198,9 +242,13 @@ def main():
         targets = targets * y_std + y_mean
 
     plt.figure(num=1)
-    plt.scatter(anchor_x, anchor_y, c='red', marker='o', s=100, label='Anchor')
-    plt.arrow(5.0, 7.5, cardinal_directions[f'{heading}'][0], cardinal_directions[f'{heading}'][1], head_width=0.3, head_length=0.3, fc='black', ec='black', label='Heading')
+    plt.arrow(5.0, 7.5, cardinal_directions[f'{heading}'][0], cardinal_directions[f'{heading}'][1], head_width=0.3, head_length=0.3, fc='black', ec='black')
+    plt.text(5.0, 7.5, heading, fontsize=10)
     plt.plot([0, 12, 12, 0, 0], [0, 0, 6, 6, 0], 'k-')
+    x_anchors, y_anchors = zip(*anchor_positions.values())
+    plt.scatter(x_anchors, y_anchors, s=100, color='red', marker='s', label='Anchors')
+    for anchor_id, (x, y) in anchor_positions.items():
+        plt.text(x, y, anchor_id, fontsize=10)
     plt.scatter(targets[:,0:1], targets[:,1:2], color='red', marker='.', alpha=0.3, label='Target Points')
     plt.scatter(predictions[:,0:1], predictions[:,1:2], color='blue', marker='.', alpha=0.3, label='Predicted Points')
     plt.grid(True)

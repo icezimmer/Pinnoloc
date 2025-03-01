@@ -178,9 +178,10 @@ def main():
     print('(', feature_columns, '), ', '(', target_column, ')')
     print(dataset[0])
 
+    logging.info('Saving datasets')
     develop_dataset, test_dataset = random_split_dataset(dataset, val_split=0.2)
 
-    logging.info('Saving datasets')
+    save_data(dataset, os.path.join('datasets', task_name, 'full_dataset'))
     save_data(develop_dataset, os.path.join('datasets', task_name, 'develop_dataset'))
     save_data(test_dataset, os.path.join('datasets', task_name, 'test_dataset'))
 

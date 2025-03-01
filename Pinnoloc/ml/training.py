@@ -15,11 +15,11 @@ class TrainModel:
         self.training_loss = []
         self.validation_loss = []
 
-    def _epoch(self, dataloader):
+    def _epoch(self, dataloader, verbose):
         self.model.train()
 
         running_loss = 0.0
-        for input_, target in tqdm(dataloader):
+        for input_, target in tqdm(dataloader, disable=~verbose):
             self.optimizer.zero_grad()
             input_ = input_.to(self.device)
             target = target.to(self.device)
@@ -32,11 +32,11 @@ class TrainModel:
 
         return running_loss / len(dataloader)
 
-    def _validate(self, dataloader):
+    def _validate(self, dataloader, verbose):
         self.model.eval()
         with torch.no_grad():
             running_loss = 0.0
-            for input_, target in tqdm(dataloader):
+            for input_, target in tqdm(dataloader, disable=~verbose):
                 input_ = input_.to(self.device)
                 target = target.to(self.device)
                 output = self.model(input_)
@@ -59,7 +59,7 @@ class TrainModel:
         self.validation_loss = []
 
     def early_stopping(self, train_dataloader, val_dataloader, patience, reduce_plateau, num_epochs=float('inf'),
-                       plot_path=None):
+                       verbose=False, plot_path=None):
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             optimizer=self.optimizer, patience=patience//2, factor=reduce_plateau)
         epoch = 0
@@ -67,8 +67,8 @@ class TrainModel:
         best_val_loss = float('inf')
         best_model_dict = self.model.state_dict()
         while buffer < patience and epoch < num_epochs:
-            train_loss_epoch = self._epoch(train_dataloader)
-            val_loss_epoch = self._validate(val_dataloader)
+            train_loss_epoch = self._epoch(train_dataloader, verbose)
+            val_loss_epoch = self._validate(val_dataloader, verbose)
             scheduler.step(val_loss_epoch)
             self.training_loss.append(train_loss_epoch)
             self.validation_loss.append(val_loss_epoch)
@@ -116,11 +116,11 @@ class TrainPhysicsModel:
         self.training_loss = []
         self.validation_loss = []
 
-    def _epoch(self, dataloader):
+    def _epoch(self, dataloader, verbose):
         self.model.train()
 
         running_loss = 0.0
-        for input_, target in tqdm(dataloader):
+        for input_, target in tqdm(dataloader, disable=~verbose):
             self.optimizer.zero_grad()
             input_ = input_.to(self.device)
             target = target.to(self.device)
@@ -136,11 +136,11 @@ class TrainPhysicsModel:
 
         return running_loss / len(dataloader)
 
-    def _validate(self, dataloader):
+    def _validate(self, dataloader, verbose):
         self.model.eval()
         with torch.no_grad():
             running_loss = 0.0
-            for input_, target in tqdm(dataloader):
+            for input_, target in tqdm(dataloader, disable=~verbose):
                 input_ = input_.to(self.device)
                 target = target.to(self.device)
                 output = self.model(input_)
@@ -148,11 +148,12 @@ class TrainPhysicsModel:
 
             return running_loss / len(dataloader)
 
-    def max_epochs(self, num_epochs, plot_path=None):
+    def max_epochs(self, num_epochs, verbose=True, plot_path=None):
         for epoch in range(num_epochs):
             loss_epoch = self._epoch(self.develop_dataloader)
             self.training_loss.append(loss_epoch)
-            print('[%d] loss: %.3f' % (epoch + 1, loss_epoch))
+            if verbose:
+                print('[%d] loss: %.3f' % (epoch + 1, loss_epoch))
 
         print('Finished Training')
 
@@ -163,7 +164,7 @@ class TrainPhysicsModel:
         self.validation_loss = []
 
     def early_stopping(self, train_dataloader, val_dataloader, patience, reduce_plateau, num_epochs=float('inf'),
-                       plot_path=None):
+                       verbose=True, plot_path=None):
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             optimizer=self.optimizer, patience=patience//2, factor=reduce_plateau)
         epoch = 0
@@ -171,8 +172,8 @@ class TrainPhysicsModel:
         best_val_loss = float('inf')
         best_model_dict = self.model.state_dict()
         while buffer < patience and epoch < num_epochs:
-            train_loss_epoch = self._epoch(train_dataloader)
-            val_loss_epoch = self._validate(val_dataloader)
+            train_loss_epoch = self._epoch(train_dataloader, verbose)
+            val_loss_epoch = self._validate(val_dataloader, verbose)
             scheduler.step(val_loss_epoch)
             self.training_loss.append(train_loss_epoch)
             self.validation_loss.append(val_loss_epoch)
@@ -182,14 +183,16 @@ class TrainPhysicsModel:
                 best_model_dict = copy.deepcopy(self.model.state_dict())
             else:
                 buffer += 1
-            print('[%d] train_loss: %.3f; val_loss: %.3f' % (epoch + 1, train_loss_epoch, val_loss_epoch))
+            if verbose:
+                print('[%d] train_loss: %.3f; val_loss: %.3f' % (epoch + 1, train_loss_epoch, val_loss_epoch))
             epoch += 1
 
         self.model.load_state_dict(best_model_dict)
-        develop_loss = self._epoch(self.develop_dataloader)
+        develop_loss = self._epoch(self.develop_dataloader, verbose)
 
-        print('[END] develop_loss: %.3f' % develop_loss)
-        print('Finished Training')
+        if verbose:
+            print('[END] develop_loss: %.3f' % develop_loss)
+            print('Finished Training')
 
         if plot_path is not None:
             self._plot(plot_path)

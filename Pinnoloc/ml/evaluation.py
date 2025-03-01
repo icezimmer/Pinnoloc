@@ -30,8 +30,8 @@ class EvaluateClassifier:
         self.roc_auc_value = None
         self.confusion_matrix_value = None
 
-    def _predict(self):
-        for input_, target in tqdm(self.dataloader):
+    def _predict(self, verbose):
+        for input_, target in tqdm(self.dataloader, disable=~verbose):
             input_ = input_.to(self.device)
             target = target.to(self.device)
 
@@ -46,7 +46,7 @@ class EvaluateClassifier:
             self.roc_auc.update(output, target)  # Use logits, not predictions!
             self.confusion_matrix.update(predictions, target)
 
-    def evaluate(self, saving_path=None):
+    def evaluate(self, verbose=True, saving_path=None):
         self.model.eval()
         with torch.no_grad():
             self._predict()
@@ -59,12 +59,13 @@ class EvaluateClassifier:
         self.roc_auc_value = self.roc_auc.compute().item()
         self.confusion_matrix_value = self.confusion_matrix.compute()
 
-        print(f"Accuracy: {self.accuracy_value}")
-        print(f"Precision: {self.precision_value}")
-        print(f"Recall: {self.recall_value}")
-        print(f"F1-Score: {self.f1_value}")
-        print(f"ROC-AUC Score: {self.roc_auc_value}")
-        print("Confusion Matrix:\n", self.confusion_matrix_value.cpu().numpy())
+        if verbose:
+            print(f"Accuracy: {self.accuracy_value}")
+            print(f"Precision: {self.precision_value}")
+            print(f"Recall: {self.recall_value}")
+            print(f"F1-Score: {self.f1_value}")
+            print(f"ROC-AUC Score: {self.roc_auc_value}")
+            print("Confusion Matrix:\n", self.confusion_matrix_value.cpu().numpy())
 
         if saving_path is not None:
             self._plot(saving_path)
@@ -128,11 +129,11 @@ class EvaluateRegressor:
         self.max_ae = None
 
 
-    def _predict(self):
+    def _predict(self, verbose):
         predictions = []
         targets = []
         
-        for input_, target in tqdm(self.dataloader):            
+        for input_, target in tqdm(self.dataloader, disable=~verbose):            
             input_ = input_.to(self.device)
             target = target.to(self.device)
 
@@ -143,10 +144,10 @@ class EvaluateRegressor:
         # Concatenate all tensors into one for proper calculations
         return torch.cat(predictions, dim=0), torch.cat(targets, dim=0)
 
-    def evaluate(self, mean=None, std=None, saving_path=None):
+    def evaluate(self, mean=None, std=None, verbose=True, saving_path=None):
         self.model.eval()
         with torch.no_grad():
-            predictions, targets = self._predict()
+            predictions, targets = self._predict(verbose)
 
         # If mean and std are provided, unnormalize the data
         if mean is not None and std is not None:
@@ -161,21 +162,22 @@ class EvaluateRegressor:
 
         self.mse    = distances.pow(2).mean().item()         # mean of squared distances
         self.rmse   = distances.pow(2).mean().sqrt().item()  # root mean squared error
-        self.p50 = quantiles[0].item()                       # 50th percentile
-        self.p75 = quantiles[1].item()                       # 75th percentile
-        self.p90 = quantiles[2].item()                       # 90th percentile
+        self.p50    = quantiles[0].item()                    # 50th percentile
+        self.p75    = quantiles[1].item()                    # 75th percentile
+        self.p90    = quantiles[2].item()                    # 90th percentile
         self.mae    = distances.mean().item()                # mean of distances (Euclidean)
         self.min_ae = distances.min().item()                 # min distance
         self.max_ae = distances.max().item()                 # max distance
 
-        print(f"Mean Squared Error (MSE): {self.mse:.6f}")
-        print(f"Root Mean Squared Error (RMSE): {self.rmse:.6f}")
-        print(f"50th Percentile: {self.p50:.6f}")
-        print(f"75th Percentile: {self.p75:.6f}")
-        print(f"90th Percentile: {self.p90:.6f}")
-        print(f"Mean Absolute Error (MAE): {self.mae:.6f}")
-        print(f"Min Absolute Error (MinAE): {self.min_ae:.6f}")
-        print(f"Max Absolute Error (MaxAE): {self.max_ae:.6f}")
+        if verbose:
+            print(f"Mean Squared Error (MSE): {self.mse:.6f}")
+            print(f"Root Mean Squared Error (RMSE): {self.rmse:.6f}")
+            print(f"50th Percentile: {self.p50:.6f}")
+            print(f"75th Percentile: {self.p75:.6f}")
+            print(f"90th Percentile: {self.p90:.6f}")
+            print(f"Mean Absolute Error (MAE): {self.mae:.6f}")
+            print(f"Min Absolute Error (MinAE): {self.min_ae:.6f}")
+            print(f"Max Absolute Error (MaxAE): {self.max_ae:.6f}")
 
         if saving_path is not None:
             self._plot(saving_path)

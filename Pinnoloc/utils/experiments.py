@@ -3,6 +3,7 @@ import random
 import numpy as np
 # import tensorflow as tf
 import yaml
+import os
 
 
 def set_seed(seed):
@@ -20,3 +21,9 @@ def set_seed(seed):
 def read_yaml_to_dict(file_path):
     with open(file_path, 'r') as file:
         return yaml.safe_load(file)
+    
+
+def save_dict_to_yaml(dictionary, file_path):
+    os.makedirs(os.path.dirname(file_path), exist_ok=True)
+    with open(file_path, 'w') as file:
+        yaml.dump(dictionary, file)

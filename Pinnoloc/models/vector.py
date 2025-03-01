@@ -83,7 +83,6 @@ class PositionModel(StackedVectorModel):
         log10 = torch.log(torch.as_tensor(10.0, dtype=torch.float32))
         k = log10 / (10.0 * path_loss_exponent)
         k = torch.as_tensor(k, dtype=torch.float32)
-        print(k)
         self.k = nn.Parameter(k, requires_grad=True)
 
         rss_1m = torch.as_tensor(rss_1m, dtype=torch.float32)

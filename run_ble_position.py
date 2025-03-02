@@ -293,22 +293,22 @@ def run_ble_position(seed, device, develop_dataset, test_dataset, hyperparameter
             predictions = predictions * y_std + y_mean
             targets = targets * y_std + y_mean
 
-        # plt.figure(num=1)
+        plt.figure(num=1)
         # plt.arrow(5.0, 7.5, cardinal_directions[f'{test}'][0], cardinal_directions[f'{test}'][1], head_width=0.3, head_length=0.3, fc='black', ec='black')
         # plt.text(5.0, 7.5, test, fontsize=10)
-        # plt.plot([0, 12, 12, 0, 0], [0, 0, 6, 6, 0], 'k-')
-        # x_anchors, y_anchors = zip(*anchor_positions.values())
-        # plt.scatter(x_anchors, y_anchors, s=100, color='red', marker='s', label='Anchors')
-        # for anchor_id, (x, y) in anchor_positions.items():
-        #     plt.text(x, y, anchor_id, fontsize=10)
-        # plt.scatter(targets[:,0:1], targets[:,1:2], color='red', marker='.', alpha=0.3, label='Target Points')
-        # plt.scatter(predictions[:,0:1], predictions[:,1:2], color='blue', marker='.', alpha=0.3, label='Predicted Points')
-        # plt.grid(True)
-        # plt.xlabel('x (m)')
-        # plt.ylabel('y (m)')
-        # plt.title('True Positions vs Predicted Positions')
-        # plt.legend()
-        # plt.show()
+        plt.plot([0, 12, 12, 0, 0], [0, 0, 6, 6, 0], 'k-')
+        x_anchors, y_anchors = zip(*anchor_positions.values())
+        plt.scatter(x_anchors, y_anchors, s=100, color='red', marker='s', label='Anchors')
+        for anchor_id, (x, y) in anchor_positions.items():
+            plt.text(x, y, anchor_id, fontsize=10)
+        plt.scatter(targets[:,0:1], targets[:,1:2], color='red', marker='.', alpha=0.3, label='Target Points')
+        plt.scatter(predictions[:,0:1], predictions[:,1:2], color='blue', marker='.', alpha=0.3, label='Predicted Points')
+        plt.grid(True)
+        plt.xlabel('x (m)')
+        plt.ylabel('y (m)')
+        plt.title('True Positions vs Predicted Positions')
+        plt.legend()
+        plt.show()
 
     return scores
 

@@ -107,11 +107,12 @@ class TrainModel:
 
 
 class TrainPhysicsModel:
-    def __init__(self, model, optimizer, criterion, develop_dataloader):
+    def __init__(self, model, optimizer, criterion, resampling_period, develop_dataloader):
         self.model = model
         self.device = check_model_device(model=self.model)
         self.optimizer = optimizer
         self.criterion = criterion
+        self.resampling_period = resampling_period
         self.develop_dataloader = develop_dataloader
         self.training_loss = []
         self.validation_loss = []
@@ -126,8 +127,6 @@ class TrainPhysicsModel:
             target = target.to(self.device)
             loss = self.criterion(self.model, input_, target)
             loss.backward()
-            # clip gradients
-            # torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1e4)
             self.optimizer.step()
 
             running_loss += loss.item()
@@ -150,6 +149,8 @@ class TrainPhysicsModel:
 
     def max_epochs(self, num_epochs, verbose=True, plot_path=None):
         for epoch in range(num_epochs):
+            if epoch % self.resampling_period == 0:
+                self.criterion.resample_collocation_points()
             loss_epoch = self._epoch(self.develop_dataloader)
             self.training_loss.append(loss_epoch)
             if verbose:
@@ -172,6 +173,8 @@ class TrainPhysicsModel:
         best_val_loss = float('inf')
         best_model_dict = self.model.state_dict()
         while buffer < patience and epoch < num_epochs:
+            if epoch % self.resampling_period == 0:
+                self.criterion.resample_collocation_points()
             train_loss_epoch = self._epoch(train_dataloader, verbose)
             val_loss_epoch = self._validate(val_dataloader, verbose)
             scheduler.step(val_loss_epoch)

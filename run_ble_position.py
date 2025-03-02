@@ -50,26 +50,27 @@ def path_loss_extimation(dataloader, anchor_x, anchor_y):
     pa = np.concatenate(pa_list, axis=0)
     xy = np.concatenate(xy_list, axis=0)
 
-    # distance from y[:, 0] and y[:, 1]
-    exp10_Z = np.sqrt((xy[:, 0:1] - anchor_x) ** 2 + (xy[:, 1:2] - anchor_y) ** 2)
-    Z = np.log10(exp10_Z)
-    p = pa[:, 0]
-    model = LinearRegression()
-    model.fit(Z, p)
-    path_loss_exponent = - model.coef_[0] / 10
-    rss_1m = model.intercept_
-    print('Estimated path loss exponent (n): ', path_loss_exponent)
-    print('Estimated RSS at 1 meter (dBm): ', rss_1m)
+    for anchor in range(len(anchor_x)):
+        # distance from y[:, 0] and y[:, 1]
+        exp10_Z = np.sqrt((xy[:, 0:1] - anchor_x[anchor]) ** 2 + (xy[:, 1:2] - anchor_y[anchor]) ** 2)
+        Z = np.log10(exp10_Z)
+        p = pa[:, anchor]
+        model = LinearRegression()
+        model.fit(Z, p)
+        path_loss_exponent = - model.coef_[0] / 10
+        rss_1m = model.intercept_
+        print('Estimated path loss exponent (n): ', path_loss_exponent)
+        print('Estimated RSS at 1 meter (dBm): ', rss_1m)
 
-    plt.figure(num=1)
-    plt.scatter(exp10_Z, p, color='blue', marker='.', alpha=0.3, label='RSS values')
-    plt.scatter(exp10_Z, model.predict(Z), color='red', marker='*', label='Log10 Regression Model')
-    plt.xlabel('Distance')
-    plt.ylabel('RSS')
-    plt.title('RSS vs Distance')
-    plt.grid(True)
-    plt.legend()
-    plt.show()
+        plt.figure(num=1)
+        plt.scatter(exp10_Z, p, color='blue', marker='.', alpha=0.3, label='RSS values')
+        plt.scatter(exp10_Z, model.predict(Z), color='red', marker='*', label='Log10 Regression Model')
+        plt.xlabel('Distance')
+        plt.ylabel('RSS')
+        plt.title('RSS vs Distance')
+        plt.grid(True)
+        plt.legend()
+        plt.show()
 
     return path_loss_exponent, rss_1m
 
@@ -77,9 +78,7 @@ def path_loss_extimation(dataloader, anchor_x, anchor_y):
 def parse_args():
     # Create the parser
     parser = argparse.ArgumentParser(description='Run BLE Position Static')
-    parser.add_argument('--seed_search', type=int, help='Random seed for hyperparameter search', default=42)
     parser.add_argument('--seed_run', type=int, help='Random seed for model run', default=42)
-    parser.add_argument('--n_configs', type=int, help='Number of configurations to generate', default=10)
     parser.add_argument('--device', type=str, help='The device to run the model', default='cpu')
     parser.add_argument('--develop', type=str, help='Choose the dataset to develop', required=True, choices=['calibration', 'static_east', 'static_north', 'static_south', 'static_west'])
     parser.add_argument('--test', type=str, help='Choose the dataset to test', required=True, choices=['calibration', 'static_east', 'static_north', 'static_south', 'static_west'])
@@ -94,101 +93,54 @@ def parse_args():
 
 def main():
     logging.basicConfig(level=logging.INFO)
-    original_log_level = logging.getLogger().getEffectiveLevel()
 
     args = parse_args()
-    seed_search = args.seed_search
     seed_run = args.seed_run
-    n_configs = args.n_configs
     device = args.device
     develop = args.develop
     test = args.test
 
     hyperparameters = {
-        'n_layers': [2],
-        'hidden_units': [[32]],
-        'batch_size': [256],
-        'lr': [0.1],
-        'weight_decay': [0.01],
-        'val_split': [0.2],
-        'patience': [10],
-        'reduce_plateau': [0.1],
-        'num_epochs': [500],
-        # 'lambda_data': [1.0],
-        # 'lambda_rss': [0.0],
-        # 'lambda_azimuth': [0.0],
-        # 'lambda_bc': [0.0],
-        'lambda_data': (0.0, 1.0),
-        'lambda_rss': (0.0, 1.0),
-        'lambda_azimuth': (0.0, 1.0),
-        'lambda_bc': (0.0, 1.0),
-        'n_collocation': [512]
+        'n_layers': 2,
+        'hidden_units': [8],
+        'batch_size': 256,
+        'lr': 0.1,
+        'weight_decay': 0.01,
+        'val_split': 0.2,
+        'patience': 10,
+        'reduce_plateau': 0.1,
+        'num_epochs': 500,
+        'lambda_data': 1.0,
+        'lambda_rss': 0.0,
+        'lambda_azimuth': 0.0,
+        'lambda_bc': 0.0,
+        'n_collocation': 8192,
+        'n_boundary_collocation': 1024,
+        'resampling_period': 10
     }
 
-    logging.info("Random search for hyperparameters.")
-    hyperparameters_list = random_search(seed=seed_search, hyperparameters=hyperparameters, n_configs=n_configs)
+    logging.info(f"Setting seed: {seed_run}")
+    set_seed(seed_run)
 
     task_name_develop = f'ble_position_{develop}'
     task_name_test = f'ble_position_{test}'
 
-    print(f"Develop: {task_name_develop}")
-    print(f"Test: {task_name_test}")
-
     logging.info(f'Loading {develop} develop and {task_name_test} test datasets.')
     try:
         if develop == test:
-            test_split = args.test_split
-            develop_split = 1.0 - test_split
             full_dataset = load_data(os.path.join('datasets', task_name_develop, 'full_dataset'))
             develop_dataset, test_dataset = random_split_dataset(full_dataset, val_split=args.test_split)
         else:
-            develop_split = 1.0
-            test_split = 1.0
             develop_dataset = load_data(os.path.join('datasets', task_name_develop, 'full_dataset'))
             test_dataset = load_data(os.path.join('datasets', task_name_test, 'full_dataset'))
-        develop_args = read_yaml_to_dict(os.path.join('datasets', task_name_develop, 'dataset_args.yaml'))
-        develop_args = {f'develop_{key}': value for key, value in develop_args.items()}
-        develop_args['develop_split'] = develop_split
-        test_args = read_yaml_to_dict(os.path.join('datasets', task_name_test, 'dataset_args.yaml'))
-        test_args = {f'test_{key}': value for key, value in test_args.items()}
-        test_args['test_split'] = test_split
     except FileNotFoundError:
         logging.error(f"Dataset not found for {task_name_develop} develop and/or {task_name_test} test.")
 
-    # Set the log level to a higher level, e.g., WARNING or CRITICAL
-    logging.disable(logging.CRITICAL)
 
-    # create a csv file to save the hyperparameters and scores
-    file_path = os.path.join('results', f'ble_position_{develop}_{test}.csv')
-    os.makedirs(os.path.dirname(file_path), exist_ok=True)
-    # Check if the file exists
-    file_exists = os.path.exists(file_path)
-
-    # Open the file in append model
-    with open(file_path, 'a', newline='') as f:
-        writer = csv.writer(f)
-        
-        # Write header only if the file is not created or empty
-        if not file_exists or os.stat(file_path).st_size == 0:
-            writer.writerow(['seed_search', 'seed_run'] + list(hyperparameters.keys()) +
-                            ['test_mse', 'test_rmse', 'test_50th', 'test_75th', 'test_90th', 'test_mae', 'test_min_ae', 'test_max_ae'] +
-                            list(develop_args.keys()) + list(test_args.keys()))
-
-    # Run your tests here
-    for hyperparameters in tqdm(hyperparameters_list):
-        scores = run_ble_position(seed_run, device, develop_dataset, test_dataset, hyperparameters)
-        # save hyperparameters and scores in a new row of a CSV file
-        with open(file_path, 'a') as f:
-            writer = csv.writer(f)
-            writer.writerow([seed_search, seed_run] +  list(hyperparameters.values())
-                            + list(scores.values()) +
-                            list(develop_args.values()) + list(test_args.values()))
-     
-    # Restore the original log level after the tests
-    logging.disable(original_log_level)
+    scores = run_ble_position(seed_run, device, develop_dataset, test_dataset, hyperparameters, verbose=True, plot=True)
 
 
-def run_ble_position(seed, device, develop_dataset, test_dataset, hyperparameters, plot=False):
+def run_ble_position(seed, device, develop_dataset, test_dataset, hyperparameters, verbose=False, plot=False):
 
     n_layers = hyperparameters['n_layers']
     hidden_units = hyperparameters['hidden_units']
@@ -204,6 +156,8 @@ def run_ble_position(seed, device, develop_dataset, test_dataset, hyperparameter
     lambda_azimuth = hyperparameters['lambda_azimuth']
     lambda_bc = hyperparameters['lambda_bc']
     n_collocation = hyperparameters['n_collocation']
+    n_boundary_collocation = hyperparameters['n_boundary_collocation']
+    resampling_period = hyperparameters['resampling_period']
 
     logging.info(f"Setting seed: {seed}")
     set_seed(seed)
@@ -216,7 +170,7 @@ def run_ble_position(seed, device, develop_dataset, test_dataset, hyperparameter
     logging.info('Standardizing datasets.')
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False)
 
-    # path_loss_exponent, rss_1m = path_loss_extimation(train_dataloader, anchor_x, anchor_y)
+    # path_loss_exponent, rss_1m = path_loss_extimation(train_dataloader, anchor_x=[0.0, 6.0, 12.0, 6.0], anchor_y=[3.0, 0.0, 3.0, 6.0],)
 
     x_mean, x_std, y_mean, y_std = compute_mean_std(train_dataloader)
 
@@ -251,24 +205,26 @@ def run_ble_position(seed, device, develop_dataset, test_dataset, hyperparameter
 
     logging.info('Setting optimizer and trainer.')
     criterion = PositionLoss(lambda_data=lambda_data, lambda_rss=lambda_rss, lambda_azimuth=lambda_azimuth, lambda_bc=lambda_bc,
-                             n_collocation=n_collocation,
+                             n_collocation=n_collocation, n_boundary_collocation=n_boundary_collocation,
+                             seed=seed,
                              mean_input=x_mean, std_input=x_std, mean_target=y_mean, std_target=y_std)
     optimizer = optim.AdamW(params=model.parameters(), lr=lr, weight_decay=weight_decay)
     trainer = TrainPhysicsModel(model=model, optimizer=optimizer, criterion=criterion,
-                            develop_dataloader=develop_dataloader)
+                                resampling_period=resampling_period,
+                                develop_dataloader=develop_dataloader)
 
     logging.info(f'Fitting model.')
     trainer.early_stopping(train_dataloader=train_dataloader, val_dataloader=val_dataloader,
-                            patience=patience, reduce_plateau=reduce_plateau, num_epochs=num_epochs, verbose=False)
+                            patience=patience, reduce_plateau=reduce_plateau, num_epochs=num_epochs, verbose=verbose)
     logging.info(f"Model fitted.")
 
     logging.info('Evaluating model on develop set.')
     eval_dev = EvaluateRegressor(model=model, dataloader=develop_dataloader)
-    eval_dev.evaluate(mean=y_mean, std=y_std, verbose=False)
+    eval_dev.evaluate(mean=y_mean, std=y_std, verbose=verbose)
 
     logging.info('Evaluating model on test set.')
     eval_test = EvaluateRegressor(model=model, dataloader=test_dataloader)
-    eval_test.evaluate(mean=y_mean, std=y_std, verbose=False)
+    eval_test.evaluate(mean=y_mean, std=y_std, verbose=verbose)
     scores = {'test_mse': eval_test.mse, 'test_rmse': eval_test.rmse,
               'test_50th': eval_test.p50, 'test_75th': eval_test.p75, 'test_90th': eval_test.p90,
               'test_mae': eval_test.mae, 'test_min_ae': eval_test.min_ae, 'test_max_ae': eval_test.max_ae}

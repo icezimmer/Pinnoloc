@@ -3,7 +3,7 @@ import numpy as np
 from Pinnoloc.utils.experiments import set_seed
 
 
-def random_search(seed, hyperparameters, n_configs):
+def random_search(hyperparameters, n_configs):
     """
     Random search on the hyperparameters of the model
     the hyperparameters are saved in a dictionary
@@ -16,8 +16,7 @@ def random_search(seed, hyperparameters, n_configs):
         - list of dictionaries with the hyperparameters
     
     """
-    set_seed(seed)
-
+    
     hyperparameters_list = []
     for _ in range(n_configs):
         hyperparameters_copy = hyperparameters.copy()

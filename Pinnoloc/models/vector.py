@@ -68,8 +68,8 @@ class PositionModel(StackedVectorModel):
                  dropout_rate=0.0,
                  anchor_x=[0.0, 6.0, 12.0, 6.0],
                  anchor_y=[3.0, 0.0, 3.0, 6.0],
-                 path_loss_exponent=[2.0, 2.0, 2.0, 2.0],
-                 rss_1m=[-50.0, -50.0, -50.0, -50.0]):
+                 path_loss_exponent=[1.5, 1.5, 1.5, 1.5],
+                 z_0=[6.0, 3.0]):
         super(PositionModel, self).__init__(n_layers, d_input, hidden_units, 2, activation, use_batchnorm, dropout_rate)
 
         # Define buffer of model
@@ -85,12 +85,8 @@ class PositionModel(StackedVectorModel):
         k = torch.as_tensor(k, dtype=torch.float32)
         self.k = nn.Parameter(k, requires_grad=True)
 
-        rss_1m = torch.as_tensor(rss_1m, dtype=torch.float32)
-        # self.rss_1m = nn.Parameter(rss_1m, requires_grad=True)
-        self.register_buffer('rss_1m', rss_1m)
-
-        d_0 = torch.as_tensor([1.0, 1.0, 1.0, 1.0], dtype=torch.float32)
-        self.d_0 = nn.Parameter(d_0, requires_grad=True)
+        z_0 = torch.as_tensor(z_0, dtype=torch.float32)
+        self.z_0 = nn.Parameter(z_0, requires_grad=True)
 
     # @property
     # def k(self):

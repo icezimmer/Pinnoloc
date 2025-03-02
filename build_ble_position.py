@@ -2,28 +2,28 @@ import pandas as pd
 import numpy as np
 from data_storage.Dataset_AoA_RSS_BLE51.data_utils import load_raw_dataset, load_gt_dataset, load_grid_dataset, create_anchors_dataset
 from Pinnoloc.data.ble_dataset import BLEDataset
-from Pinnoloc.utils.split_data import random_split_dataset
 from Pinnoloc.utils.saving import save_data
-from Pinnoloc.utils.experiments import set_seed
+from Pinnoloc.utils.experiments import save_dict_to_yaml
 import logging
 import os
 from scipy import stats
 import argparse
 
 
-def create_df(heading):
-
-    def load_gt(heading):
-        gt = load_gt_dataset(f'data_storage/Dataset_AoA_RSS_BLE51/static/gt/gt_static_{heading}.txt')
-        return gt
-
-
-    def load_data(heading):
-        data = load_raw_dataset(f'data_storage/Dataset_AoA_RSS_BLE51/static/beacons/beacons_static_{heading}.txt')
-        return data
+def create_df(task):
     
-    gt = load_gt(heading)
-    data = load_data(heading)
+    def load_data(task):
+        task_0 = task.split('_')[0]
+        data = load_raw_dataset(f'data_storage/Dataset_AoA_RSS_BLE51/{task_0}/beacons/beacons_{task}.txt')
+        return data
+
+    def load_gt(task):
+        task_0 = task.split('_')[0]
+        gt = load_gt_dataset(f'data_storage/Dataset_AoA_RSS_BLE51/{task_0}/gt/gt_{task}.txt')
+        return gt
+    
+    gt = load_gt(task)
+    data = load_data(task)
     # Merge the data with the ground truth data
     df = pd.merge_asof(data, gt, left_on='Epoch_Time', right_on='Start_Time', direction='backward')
     # Filter the rows where the epoch time is within the interval [Start_Time, End_Time]
@@ -126,9 +126,8 @@ def preprocess_df(df, channel, polarization, preprocess, buffer):
 # set a parse_args function to parse the arguments
 def parse_args():
     # Create the parser
-    parser = argparse.ArgumentParser(description='Build BLE Position Static dataset')
-    parser.add_argument('--seed', type=int, help='Random seed', default=42)
-    parser.add_argument('--heading', type=str, help='The cardinal direction', required=True, choices=['east', 'north', 'south', 'west'])
+    parser = argparse.ArgumentParser(description='Build BLE Position dataset')
+    parser.add_argument('--task', type=str, help='The cardinal direction', required=True, choices=['calibration', 'static_east', 'static_north', 'static_south', 'static_west'])
     parser.add_argument('--channel', type=int, help='The BLE channel', required=True, choices=[37, 38, 39, -1])
     parser.add_argument('--polarization', type=str, help='The BLE polarization', required=True, choices=['1st', '2nd', 'mean'])
     parser.add_argument('--buffer', type=int, help='The buffer time in milliseconds (ms)', required=True)
@@ -142,30 +141,20 @@ def main():
     
     # Take the arguments from the command line
     args = parse_args()
-    seed = args.seed
     channel = args.channel
     polarization = args.polarization
-    heading = args.heading
+    task = args.task
     preprocess = args.preprocess
     buffer = args.buffer
 
-    task_name = f'ble_position_static_{heading}'
+    task_name = f'ble_position_{task}'
 
-    logging.info(f"Setting seed: {seed}")
-    set_seed(seed)
+    logging.info(f"Creating BLE Position Dataset for task: {task}")
 
-    df = create_df(heading)
+    df = create_df(task)
     print(df)
     df = preprocess_df(df, channel=channel, polarization=polarization, preprocess=preprocess, buffer=buffer)
     print(df)
-
-    # feature_columns = [col for col in df.columns if col.startswith('feature/')]
-    # target_column = [col for col in df.columns if col.startswith('target/')]
-    # dataset = BLEDataset(
-    #     dataframe=df,
-    #     feature_columns=feature_columns,
-    #     target_column=target_column
-    #     )
 
     feature_columns = ['RSS', 'AoA_Az']
     target_column = ['X', 'Y']
@@ -178,12 +167,9 @@ def main():
     print('(', feature_columns, '), ', '(', target_column, ')')
     print(dataset[0])
 
-    logging.info('Saving datasets')
-    develop_dataset, test_dataset = random_split_dataset(dataset, val_split=0.2)
-
+    logging.info('Saving dataset')
     save_data(dataset, os.path.join('datasets', task_name, 'full_dataset'))
-    save_data(develop_dataset, os.path.join('datasets', task_name, 'develop_dataset'))
-    save_data(test_dataset, os.path.join('datasets', task_name, 'test_dataset'))
+    save_dict_to_yaml(vars(args), os.path.join('datasets', task_name, 'dataset_args.yaml'))
 
 
 if __name__ == "__main__":

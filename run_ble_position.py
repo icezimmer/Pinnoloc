@@ -81,8 +81,13 @@ def parse_args():
     parser.add_argument('--seed_run', type=int, help='Random seed for model run', default=42)
     parser.add_argument('--n_configs', type=int, help='Number of configurations to generate', default=10)
     parser.add_argument('--device', type=str, help='The device to run the model', default='cpu')
-    parser.add_argument('--develop', type=str, help='Choose the dataset to develop', required=True, choices=['east', 'north', 'south', 'west'])
-    parser.add_argument('--test', type=str, help='Choose the dataset to test', required=True, choices=['east', 'north', 'south', 'west'])
+    parser.add_argument('--develop', type=str, help='Choose the dataset to develop', required=True, choices=['calibration', 'static_east', 'static_north', 'static_south', 'static_west'])
+    parser.add_argument('--test', type=str, help='Choose the dataset to test', required=True, choices=['calibration', 'static_east', 'static_north', 'static_south', 'static_west'])
+
+    # If and only if develop is distinct from test, require the test_split argument
+    args, _ = parser.parse_known_args()
+    if args.develop == args.test:
+        parser.add_argument('--test_split', type=float, help='The test split ratio', required=True)
 
     return parser.parse_args()
 
@@ -120,13 +125,41 @@ def main():
         'n_collocation': [512]
     }
 
+    logging.info("Random search for hyperparameters.")
     hyperparameters_list = random_search(seed=seed_search, hyperparameters=hyperparameters, n_configs=n_configs)
+
+    task_name_develop = f'ble_position_{develop}'
+    task_name_test = f'ble_position_{test}'
+
+    print(f"Develop: {task_name_develop}")
+    print(f"Test: {task_name_test}")
+
+    logging.info(f'Loading {develop} develop and {task_name_test} test datasets.')
+    try:
+        if develop == test:
+            test_split = args.test_split
+            develop_split = 1.0 - test_split
+            full_dataset = load_data(os.path.join('datasets', task_name_develop, 'full_dataset'))
+            develop_dataset, test_dataset = random_split_dataset(full_dataset, val_split=args.test_split)
+        else:
+            develop_split = 1.0
+            test_split = 1.0
+            develop_dataset = load_data(os.path.join('datasets', task_name_develop, 'full_dataset'))
+            test_dataset = load_data(os.path.join('datasets', task_name_test, 'full_dataset'))
+        develop_args = read_yaml_to_dict(os.path.join('datasets', task_name_develop, 'dataset_args.yaml'))
+        develop_args = {f'develop_{key}': value for key, value in develop_args.items()}
+        develop_args['develop_split'] = develop_split
+        test_args = read_yaml_to_dict(os.path.join('datasets', task_name_test, 'dataset_args.yaml'))
+        test_args = {f'test_{key}': value for key, value in test_args.items()}
+        test_args['test_split'] = test_split
+    except FileNotFoundError:
+        logging.error(f"Dataset not found for {task_name_develop} develop and/or {task_name_test} test.")
 
     # Set the log level to a higher level, e.g., WARNING or CRITICAL
     logging.disable(logging.CRITICAL)
 
     # create a csv file to save the hyperparameters and scores
-    file_path = os.path.join('results', f'ble_position_static_{develop}_static_{test}.csv')
+    file_path = os.path.join('results', f'ble_position_{develop}_{test}.csv')
     os.makedirs(os.path.dirname(file_path), exist_ok=True)
     # Check if the file exists
     file_exists = os.path.exists(file_path)
@@ -135,33 +168,27 @@ def main():
     with open(file_path, 'a', newline='') as f:
         writer = csv.writer(f)
         
-        # Write header only if the file is being created
-        if not file_exists:
-            writer.writerow(list(hyperparameters.keys()) +
-                            ['test_mse', 'test_rmse', 'test_50th', 'test_75th', 'test_90th', 'test_mae', 'test_min_ae', 'test_max_ae'])
+        # Write header only if the file is not created or empty
+        if not file_exists or os.stat(file_path).st_size == 0:
+            writer.writerow(['seed_search', 'seed_run'] + list(hyperparameters.keys()) +
+                            ['test_mse', 'test_rmse', 'test_50th', 'test_75th', 'test_90th', 'test_mae', 'test_min_ae', 'test_max_ae'] +
+                            list(develop_args.keys()) + list(test_args.keys()))
 
     # Run your tests here
     for hyperparameters in tqdm(hyperparameters_list):
-        scores = run_ble_position_static(seed_run, device, develop, test, hyperparameters)
+        scores = run_ble_position(seed_run, device, develop_dataset, test_dataset, hyperparameters)
         # save hyperparameters and scores in a new row of a CSV file
         with open(file_path, 'a') as f:
             writer = csv.writer(f)
-            writer.writerow(list(hyperparameters.values()) + list(scores.values()))
-
-        # if scores['test_rmse'] < best_score:
-        #     best_score = scores['test_rmse']
-        #     save_dict_to_yaml(hyperparameters, os.path.join('configs', f'ble_position_static_{develop}_static_{test}', 'best', 'hyperparameters.yaml'))
-        #     save_dict_to_yaml(scores, os.path.join('configs', f'ble_position_static_{develop}_static_{test}', 'best', 'scores.yaml'))
+            writer.writerow([seed_search, seed_run] +  list(hyperparameters.values())
+                            + list(scores.values()) +
+                            list(develop_args.values()) + list(test_args.values()))
      
     # Restore the original log level after the tests
     logging.disable(original_log_level)
 
 
-def run_ble_position_static(seed, device, develop, test, hyperparameters, plot=False):
-
-    task_name_develop = f'ble_position_static_{develop}'
-    task_name_test = f'ble_position_static_{test}'
-    logging.info(f"Develop on dataset: {task_name_develop}, Test on dataset: {task_name_test}")
+def run_ble_position(seed, device, develop_dataset, test_dataset, hyperparameters, plot=False):
 
     n_layers = hyperparameters['n_layers']
     hidden_units = hyperparameters['hidden_units']
@@ -180,17 +207,6 @@ def run_ble_position_static(seed, device, develop, test, hyperparameters, plot=F
 
     logging.info(f"Setting seed: {seed}")
     set_seed(seed)
-
-    logging.info(f'Loading {task_name_develop} develop and {task_name_test} test datasets.')
-    try:
-        if develop == test:
-            develop_dataset = load_data(os.path.join('datasets', task_name_develop, 'develop_dataset'))
-            test_dataset = load_data(os.path.join('datasets', task_name_test, 'test_dataset'))
-        else:
-            develop_dataset = load_data(os.path.join('datasets', task_name_develop, 'full_dataset'))
-            test_dataset = load_data(os.path.join('datasets', task_name_test, 'full_dataset'))
-    except FileNotFoundError:
-        logging.error(f"Dataset not found for {task_name_develop} develop and/or {task_name_test} test.")
 
     d_input = develop_dataset[0][0].shape[0]
 
@@ -241,10 +257,10 @@ def run_ble_position_static(seed, device, develop, test, hyperparameters, plot=F
     trainer = TrainPhysicsModel(model=model, optimizer=optimizer, criterion=criterion,
                             develop_dataloader=develop_dataloader)
 
-    logging.info(f'Fitting model for {task_name_develop}.')
+    logging.info(f'Fitting model.')
     trainer.early_stopping(train_dataloader=train_dataloader, val_dataloader=val_dataloader,
                             patience=patience, reduce_plateau=reduce_plateau, num_epochs=num_epochs, verbose=False)
-    logging.info(f"Model fitted for {task_name_test}.")
+    logging.info(f"Model fitted.")
 
     logging.info('Evaluating model on develop set.')
     eval_dev = EvaluateRegressor(model=model, dataloader=develop_dataloader)
@@ -277,22 +293,22 @@ def run_ble_position_static(seed, device, develop, test, hyperparameters, plot=F
             predictions = predictions * y_std + y_mean
             targets = targets * y_std + y_mean
 
-        plt.figure(num=1)
-        plt.arrow(5.0, 7.5, cardinal_directions[f'{test}'][0], cardinal_directions[f'{test}'][1], head_width=0.3, head_length=0.3, fc='black', ec='black')
-        plt.text(5.0, 7.5, test, fontsize=10)
-        plt.plot([0, 12, 12, 0, 0], [0, 0, 6, 6, 0], 'k-')
-        x_anchors, y_anchors = zip(*anchor_positions.values())
-        plt.scatter(x_anchors, y_anchors, s=100, color='red', marker='s', label='Anchors')
-        for anchor_id, (x, y) in anchor_positions.items():
-            plt.text(x, y, anchor_id, fontsize=10)
-        plt.scatter(targets[:,0:1], targets[:,1:2], color='red', marker='.', alpha=0.3, label='Target Points')
-        plt.scatter(predictions[:,0:1], predictions[:,1:2], color='blue', marker='.', alpha=0.3, label='Predicted Points')
-        plt.grid(True)
-        plt.xlabel('x (m)')
-        plt.ylabel('y (m)')
-        plt.title('True Positions vs Predicted Positions')
-        plt.legend()
-        plt.show()
+        # plt.figure(num=1)
+        # plt.arrow(5.0, 7.5, cardinal_directions[f'{test}'][0], cardinal_directions[f'{test}'][1], head_width=0.3, head_length=0.3, fc='black', ec='black')
+        # plt.text(5.0, 7.5, test, fontsize=10)
+        # plt.plot([0, 12, 12, 0, 0], [0, 0, 6, 6, 0], 'k-')
+        # x_anchors, y_anchors = zip(*anchor_positions.values())
+        # plt.scatter(x_anchors, y_anchors, s=100, color='red', marker='s', label='Anchors')
+        # for anchor_id, (x, y) in anchor_positions.items():
+        #     plt.text(x, y, anchor_id, fontsize=10)
+        # plt.scatter(targets[:,0:1], targets[:,1:2], color='red', marker='.', alpha=0.3, label='Target Points')
+        # plt.scatter(predictions[:,0:1], predictions[:,1:2], color='blue', marker='.', alpha=0.3, label='Predicted Points')
+        # plt.grid(True)
+        # plt.xlabel('x (m)')
+        # plt.ylabel('y (m)')
+        # plt.title('True Positions vs Predicted Positions')
+        # plt.legend()
+        # plt.show()
 
     return scores
 

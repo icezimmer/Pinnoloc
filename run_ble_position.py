@@ -110,12 +110,12 @@ def main():
         'patience': 10,
         'reduce_plateau': 0.1,
         'num_epochs': 500,
-        'lambda_data': 1.0,
-        'lambda_rss': 0.0,
-        'lambda_azimuth': 0.0,
-        'lambda_bc': 0.0,
+        'lambda_data': 0.0,
+        'lambda_rss': 1.0,
+        'lambda_azimuth': 1.0,
+        'lambda_bc': 1.0,
         'n_collocation': 8192,
-        'n_boundary_collocation': 1024,
+        'n_boundary_collocation': 16000,
         'resampling_period': 10
     }
 
@@ -173,6 +173,10 @@ def run_ble_position(seed, device, develop_dataset, test_dataset, hyperparameter
     # path_loss_exponent, rss_1m = path_loss_extimation(train_dataloader, anchor_x=[0.0, 6.0, 12.0, 6.0], anchor_y=[3.0, 0.0, 3.0, 6.0],)
 
     x_mean, x_std, y_mean, y_std = compute_mean_std(train_dataloader)
+    print('Mean of input: ', x_mean)
+    print('Std of input: ', x_std)
+    print('Mean of target: ', y_mean)
+    print('Std of target: ', y_std)
 
     train_dataset = StandardizeDataset(base_dataset=train_dataset,
                                        mean_input=x_mean, std_input=x_std,

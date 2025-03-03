@@ -70,7 +70,23 @@ class PositionLoss(torch.nn.Module):
         other_collocation = -3.0 + 6.0 * torch.rand(self.n_collocation,n_features - n_anchors, generator=self.generator, device=device, requires_grad=False)
         return P_collocation, other_collocation
     
-    def boundary_collocation_points(self, n_features, n_anchors, device):
+    # def boundary_collocation_points(self, n_features, n_anchors, device):
+    #     """
+    #     Generate boundary collocation points for the physics loss representing RSSI with normal distribution.
+    #     - Input:
+    #         - n_boundary_collocation: Number of boundary collocation points.
+    #         - n_features: Number of features in the input data.
+    #         - n_anchors: Number of anchors in the system.
+    #         - device: Device to run the model on.
+    #     - Output:
+    #         - boundary_collocation: Boundary collocation points for a particular position
+    #     """
+    #     a_0 = torch.as_tensor([0.0, torch.pi/2, torch.pi, -torch.pi/2]) * torch.ones(self.n_boundary_collocation, n_anchors, device=device, requires_grad=False)
+    #     other_collocation = torch.randn(self.n_boundary_collocation, n_features - n_anchors, generator=self.generator, device=device, requires_grad=False)
+    #     boundary_collocation = torch.cat((other_collocation, a_0), dim=-1)
+    #     return boundary_collocation
+    
+    def boundary_collocation_points(self, n_features, n_anchors, rss_0, a_0, device):
         """
         Generate boundary collocation points for the physics loss representing RSSI with normal distribution.
         - Input:
@@ -81,9 +97,11 @@ class PositionLoss(torch.nn.Module):
         - Output:
             - boundary_collocation: Boundary collocation points for a particular position
         """
-        a_0 = torch.zeros(self.n_boundary_collocation, n_anchors, device=device, requires_grad=False)
-        other_collocation = torch.randn(self.n_boundary_collocation, n_features - n_anchors, generator=self.generator, device=device, requires_grad=False)
-        boundary_collocation = torch.cat((other_collocation, a_0), dim=-1)
+        rss_0 = (rss_0 - self.mean_input[:n_anchors]) / self.std_input[:n_anchors]
+        a_0 = (a_0 - self.mean_input[n_anchors:]) / self.std_input[n_anchors:]
+        P_collocation = rss_0 * torch.ones(self.n_boundary_collocation, n_anchors, device=device, requires_grad=False) + torch.randn(self.n_boundary_collocation, n_anchors, generator=self.generator, device=device, requires_grad=False)
+        other_collocation = a_0 * torch.ones(self.n_boundary_collocation, n_features - n_anchors, device=device, requires_grad=False)
+        boundary_collocation = torch.cat((P_collocation, other_collocation), dim=-1)
         return boundary_collocation
     
     def resample_collocation_points(self):
@@ -107,10 +125,16 @@ class PositionLoss(torch.nn.Module):
                     device=inputs.device,
                     requires_grad=True)
                 
-                self._cached_boundary = self.boundary_collocation_points(
+                self._cached_boundary = [
+                    self.boundary_collocation_points(
                     n_features=inputs.shape[-1],
                     n_anchors=n_anchors,
+                    rss_0=model.rss_0[i,:],
+                    a_0=model.a_0[i,:],
                     device=inputs.device)
+                    for i in range(len(model.z_0))
+                ]
+
                 self._resample_collocation_points = False
 
             # Collocation points for the physics loss representing RSSI with normal distribution
@@ -162,12 +186,23 @@ class PositionLoss(torch.nn.Module):
                 azimuth_loss += torch.mean(torch.pow(residual_azimuth, 2))
             azimuth_loss /= n_anchors
 
-            boundary_collocation = self._cached_boundary
-            boundary_collocation = boundary_collocation.detach().clone().requires_grad_(False)
-            z_boundary_collocation = model(boundary_collocation)
-            z_boundary_collocation = self.std_target * z_boundary_collocation + self.mean_target
-            residual_boundary = model.z_0 - z_boundary_collocation
-            boundary_loss = torch.mean(torch.pow(residual_boundary, 2))
+            # boundary_collocation = self._cached_boundary
+            # boundary_collocation = boundary_collocation.detach().clone().requires_grad_(False)
+            # z_boundary_collocation = model(boundary_collocation)
+            # z_boundary_collocation = self.std_target * z_boundary_collocation + self.mean_target
+            # residual_boundary = model.z_0 - z_boundary_collocation
+            # boundary_loss = torch.mean(torch.pow(residual_boundary, 2))
+
+            boundary_collocation_list = self._cached_boundary
+            boundary_loss = 0.0
+            for i in range(len(model.z_0)):
+                boundary_collocation = boundary_collocation_list[i]
+                boundary_collocation = boundary_collocation.detach().clone().requires_grad_(False)
+                z_boundary_collocation = model(boundary_collocation)
+                z_boundary_collocation = self.std_target * z_boundary_collocation + self.mean_target
+                residual_boundary = torch.norm(model.z_0[i,:] - z_boundary_collocation, p=2, dim=1)
+                boundary_loss += torch.mean(torch.pow(residual_boundary, 2))
+            boundary_loss /= len(model.z_0)
 
             # Compute total loss
             total_loss = (self.lambda_data * data_loss) + (self.lambda_rss * rss_loss) + (self.lambda_azimuth * azimuth_loss) + (self.lambda_bc * boundary_loss)

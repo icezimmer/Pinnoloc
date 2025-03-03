@@ -60,5 +60,3 @@ data_storage/*
 !data_storage/.gitkeep
 datasets/*
 !datasets/.gitkeep
-results/*
-!results/.gitkeep

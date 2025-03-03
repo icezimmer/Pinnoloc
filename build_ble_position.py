@@ -53,7 +53,7 @@ def preprocess_df(df, channel, polarization, preprocess, buffer):
     # Convert angles to radians
     df['AoA_Az'] = np.radians(df['AoA_Az'])
     # df['AoA_El'] = np.radians(df['AoA_El'])
-    # df['Az_Arrival'] = np.radians(df['Az_Arrival'])
+    df['Az_Arrival'] = np.radians(df['Az_Arrival'])
     # df['El_Arrival'] = np.radians(df['El_Arrival'])
 
     # Transform the observed azimuth angle of arrival to the canonical reference system
@@ -62,7 +62,13 @@ def preprocess_df(df, channel, polarization, preprocess, buffer):
     df.loc[df['Anchor_ID'] == 6503, 'AoA_Az'] = np.pi - df.loc[df['Anchor_ID'] == 6503, 'AoA_Az']  # Right Anchor (West direction)
     df.loc[df['Anchor_ID'] == 6504, 'AoA_Az'] = - (np.pi / 2) - df.loc[df['Anchor_ID'] == 6504, 'AoA_Az']  # Top Anchor (South direction)
 
-    df['AoA_Az'] = np.arctan2(np.sin(df['AoA_Az']), np.cos(df['AoA_Az']))  # set the angle between -pi and pi
+    df.loc[df['Anchor_ID'] == 6501, 'Az_Arrival'] = - df.loc[df['Anchor_ID'] == 6501, 'Az_Arrival']  # Left Anchor (East direction)
+    df.loc[df['Anchor_ID'] == 6502, 'Az_Arrival'] = (np.pi / 2) - df.loc[df['Anchor_ID'] == 6502, 'Az_Arrival']  # Bottom Anchor (North direction)
+    df.loc[df['Anchor_ID'] == 6503, 'Az_Arrival'] = np.pi - df.loc[df['Anchor_ID'] == 6503, 'Az_Arrival']  # Right Anchor (West direction)
+    df.loc[df['Anchor_ID'] == 6504, 'Az_Arrival'] = - (np.pi / 2) - df.loc[df['Anchor_ID'] == 6504, 'Az_Arrival']  # Top Anchor (South direction)
+
+    # df['AoA_Az'] = np.arctan2(np.sin(df['AoA_Az']), np.cos(df['AoA_Az']))  # set the angle between -pi and pi
+    # df['Az_Arrival'] = np.arctan2(np.sin(df['Az_Arrival']), np.cos(df['Az_Arrival']))  # set the angle between -pi and pi
 
     if channel != -1:
         df = df[df['Channel'] == channel]
@@ -71,6 +77,27 @@ def preprocess_df(df, channel, polarization, preprocess, buffer):
     else:
         df['RSS'] = df[f'RSS_{polarization}_Pol']
 
+    pause = input("\nRSS for position (1.2, 1.2). Press Enter to continue...")
+    df_bc1 = df.loc[(df['X'] == 1.2) & (df['Y'] == 1.2), ['Anchor_ID', 'Az_Arrival', 'AoA_Az', 'RSS']]
+    df_bc1 = df_bc1.groupby(['Anchor_ID', 'Az_Arrival']).agg({'AoA_Az': 'mean', 'RSS': 'mean'}).reset_index()
+    print(df_bc1)
+
+    pause = input("\nRSS for position (10.8, 1.2). Press Enter to continue...")
+    df_bc2 = df.loc[(df['X'] == 10.8) & (df['Y'] == 1.2), ['Anchor_ID', 'Az_Arrival', 'AoA_Az', 'RSS']]
+    df_bc2 = df_bc2.groupby(['Anchor_ID', 'Az_Arrival']).agg({'AoA_Az': 'mean', 'RSS': 'mean'}).reset_index()
+    print(df_bc2)
+
+    pause = input("\nRSS for position (10.8, 4.8). Press Enter to continue...")
+    df_bc3 = df.loc[(df['X'] == 10.8) & (df['Y'] == 4.8), ['Anchor_ID', 'Az_Arrival', 'AoA_Az', 'RSS']]
+    df_bc3 = df_bc3.groupby(['Anchor_ID', 'Az_Arrival']).agg({'AoA_Az': 'mean', 'RSS': 'mean'}).reset_index()
+    print(df_bc3)
+
+    pause = input("\nRSS for position (1.2, 4.8). Press Enter to continue...")
+    df_bc4 = df.loc[(df['X'] == 1.2) & (df['Y'] == 4.8), ['Anchor_ID', 'Az_Arrival', 'AoA_Az', 'RSS']]
+    df_bc4 = df_bc4.groupby(['Anchor_ID', 'Az_Arrival']).agg({'AoA_Az': 'mean', 'RSS': 'mean'}).reset_index()
+    print(df_bc4)
+
+    pause = input("\nPress Enter to continue...")
     if preprocess:
         # For each Distance take the Z score of RSS less than 2
         df['Distance'] = ((df['X'] - df['Anchor_x'])**2 + (df['Y'] - df['Anchor_y'])**2)**0.5

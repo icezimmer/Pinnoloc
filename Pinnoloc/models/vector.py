@@ -87,6 +87,36 @@ class DistanceModel(StackedVectorModel):
 # 3       6504   -2.897247 -2.439220 -78.672634
 
 
+
+# RSS for position (1.2, 1.2). Press Enter to continue...
+#    Anchor_ID  Az_Arrival    AoA_Az        RSS
+# 0       6501   -0.977384 -0.811677 -67.886005
+# 1       6502    2.897247  2.626567 -77.609357
+# 2       6503   -2.984513 -2.725219 -79.856448
+# 3       6504   -2.356194 -2.216139 -75.560155
+
+# RSS for position (10.8, 1.2). Press Enter to continue...
+#    Anchor_ID  Az_Arrival    AoA_Az        RSS
+# 0       6501   -0.157080 -0.452830 -83.048810
+# 1       6502    0.244346  0.991215 -79.380896
+# 2       6503   -2.164208 -2.442936 -65.756944
+# 3       6504   -0.785398 -0.719309 -71.955013
+
+# RSS for position (10.8, 4.8). Press Enter to continue...
+#    Anchor_ID  Az_Arrival    AoA_Az        RSS
+# 0       6501    0.157080  0.553053 -84.354286
+# 1       6502    0.785398  1.032371 -79.108696
+# 2       6503    2.164208  2.313276 -70.819692
+# 3       6504   -0.244346 -0.520642 -83.417533
+
+# RSS for position (1.2, 4.8). Press Enter to continue...
+#    Anchor_ID  Az_Arrival    AoA_Az        RSS
+# 0       6501    0.977384  0.578434 -72.974209
+# 1       6502    2.356194  2.290432 -73.773998
+# 2       6503    2.984513  2.757748 -72.976773
+# 3       6504   -2.897247 -2.439220 -78.672634
+
+
 class PositionModel(StackedVectorModel):
     def __init__(self, 
                  n_layers,
@@ -97,7 +127,8 @@ class PositionModel(StackedVectorModel):
                  dropout_rate=0.0,
                  anchor_x=[0.0, 6.0, 12.0, 6.0],
                  anchor_y=[3.0, 0.0, 3.0, 6.0],
-                 path_loss_exponent=[1.5, 1.5, 1.5, 1.5],
+                 path_loss_exponent=[1.52, 2.1, 1.53, 1.63],
+                 # path_loss_exponent=[20.0, 20.0, 20.0, 20.0],
                  z_0=[[1.2, 1.2],
                       [10.8, 1.2],
                       [10.8, 4.8],
@@ -106,8 +137,8 @@ class PositionModel(StackedVectorModel):
                         [-83.0, -79.0, -66.0, -72.0],
                         [-84.0, -79.0, -71.0, -83.0],
                         [-73.0, -74.0, -73.0, -79.0]],
-                 a_0=[[-0.977384, 2.897247, 3.298672, -2.356194],
-                      [-0.157080, 0.244346, 4.118977, -0.785398],
+                 a_0=[[-0.977384, 2.897247, -2.984513, -2.356194],
+                      [-0.157080, 0.244346, -2.164208, -0.785398],
                       [0.157080, 0.785398, 2.164208, -0.244346],
                       [0.977384, 2.356194, 2.984513, -2.897247]]
                  ):
@@ -120,9 +151,9 @@ class PositionModel(StackedVectorModel):
         anchor_y = torch.as_tensor(anchor_y, dtype=torch.float32)
         self.register_buffer('anchor_y', anchor_y)
 
-        path_loss_exponent = torch.as_tensor(path_loss_exponent, dtype=torch.float32)
+        self.path_loss_exponent = torch.as_tensor(path_loss_exponent, dtype=torch.float32)
         log10 = torch.log(torch.as_tensor(10.0, dtype=torch.float32))
-        k = log10 / (10.0 * path_loss_exponent)
+        k = log10 / (10.0 * self.path_loss_exponent)
         k = torch.as_tensor(k, dtype=torch.float32)
         self.k = nn.Parameter(k, requires_grad=True)
 
@@ -133,7 +164,7 @@ class PositionModel(StackedVectorModel):
         self.register_buffer('a_0', a_0)
 
         z_0 = torch.as_tensor(z_0, dtype=torch.float32)
-        self.z_0 = nn.Parameter(z_0, requires_grad=True)
+        self.z_0 = nn.Parameter(z_0, requires_grad=False)
 
     # @property
     # def k(self):

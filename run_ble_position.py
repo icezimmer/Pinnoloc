@@ -105,18 +105,18 @@ def main():
         'hidden_units': [8],
         'batch_size': 256,
         'lr': 0.1,
-        'weight_decay': 0.01,
+        'weight_decay': 0.0,
         'val_split': 0.2,
         'patience': 10,
-        'reduce_plateau': 0.1,
+        'reduce_plateau': 0.0,
         'num_epochs': 500,
-        'lambda_data': 0.0,
+        'lambda_data': 1.0,
         'lambda_rss': 1.0,
-        'lambda_azimuth': 1.0,
+        'lambda_azimuth': 0.0,
         'lambda_bc': 1.0,
-        'n_collocation': 8192,
-        'n_boundary_collocation': 16000,
-        'resampling_period': 10
+        'n_collocation': 100,
+        'n_boundary_collocation': 256,
+        'resampling_period': 100
     }
 
     logging.info(f"Setting seed: {seed_run}")
@@ -173,10 +173,6 @@ def run_ble_position(seed, device, develop_dataset, test_dataset, hyperparameter
     # path_loss_exponent, rss_1m = path_loss_extimation(train_dataloader, anchor_x=[0.0, 6.0, 12.0, 6.0], anchor_y=[3.0, 0.0, 3.0, 6.0],)
 
     x_mean, x_std, y_mean, y_std = compute_mean_std(train_dataloader)
-    print('Mean of input: ', x_mean)
-    print('Std of input: ', x_std)
-    print('Mean of target: ', y_mean)
-    print('Std of target: ', y_std)
 
     train_dataset = StandardizeDataset(base_dataset=train_dataset,
                                        mean_input=x_mean, std_input=x_std,
@@ -252,6 +248,23 @@ def run_ble_position(seed, device, develop_dataset, test_dataset, hyperparameter
             predictions, targets = torch.cat(predictions, dim=0), torch.cat(targets, dim=0)
             predictions = predictions * y_std + y_mean
             targets = targets * y_std + y_mean
+
+        #     anchor_x=[0.0, 6.0, 12.0, 6.0]
+        #     anchor_x = torch.as_tensor(anchor_x, dtype=torch.float32)
+        #     anchor_y=[3.0, 0.0, 3.0, 6.0]
+        #     anchor_y = torch.as_tensor(anchor_y, dtype=torch.float32)
+
+        
+        #     P_collocation, a_collocation = criterion.collocation_points(anchor_x, anchor_y, path_loss_exponent=model.path_loss_exponent, device='cpu')
+        #     collocation = torch.cat((P_collocation, a_collocation), dim=1)
+
+        #     predictions = model(collocation)
+        #     predictions = predictions * y_std + y_mean
+
+        # plt.scatter(predictions[:,0:1], predictions[:,1:2], color='blue', marker='.', alpha=0.3, label='Predicted Points')
+        # plt.show()
+
+
 
         plt.figure(num=1)
         # plt.arrow(5.0, 7.5, cardinal_directions[f'{test}'][0], cardinal_directions[f'{test}'][1], head_width=0.3, head_length=0.3, fc='black', ec='black')

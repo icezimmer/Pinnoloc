@@ -32,8 +32,8 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Run BLE Position Static')
     parser.add_argument('--seed_search', type=int, help='Random seed for hyperparameter search', default=42)
     parser.add_argument('--seed_run', type=int, help='Random seed for model run', default=42)
-    parser.add_argument('--n_configs', type=int, help='Number of configurations to generate', default=10)
     parser.add_argument('--device', type=str, help='The device to run the model', default='cpu')
+    parser.add_argument('--n_configs', type=int, help='Number of configurations to generate', required=True)
     parser.add_argument('--develop', type=str, help='Choose the dataset to develop', required=True, choices=['calibration', 'static_east', 'static_north', 'static_south', 'static_west'])
     parser.add_argument('--test', type=str, help='Choose the dataset to test', required=True, choices=['calibration', 'static_east', 'static_north', 'static_south', 'static_west'])
 

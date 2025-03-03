@@ -67,8 +67,8 @@ def preprocess_df(df, channel, polarization, preprocess, buffer):
     df.loc[df['Anchor_ID'] == 6503, 'Az_Arrival'] = np.pi - df.loc[df['Anchor_ID'] == 6503, 'Az_Arrival']  # Right Anchor (West direction)
     df.loc[df['Anchor_ID'] == 6504, 'Az_Arrival'] = - (np.pi / 2) - df.loc[df['Anchor_ID'] == 6504, 'Az_Arrival']  # Top Anchor (South direction)
 
-    # df['AoA_Az'] = np.arctan2(np.sin(df['AoA_Az']), np.cos(df['AoA_Az']))  # set the angle between -pi and pi
-    # df['Az_Arrival'] = np.arctan2(np.sin(df['Az_Arrival']), np.cos(df['Az_Arrival']))  # set the angle between -pi and pi
+    df['AoA_Az'] = np.arctan2(np.sin(df['AoA_Az']), np.cos(df['AoA_Az']))  # set the angle between -pi and pi
+    df['Az_Arrival'] = np.arctan2(np.sin(df['Az_Arrival']), np.cos(df['Az_Arrival']))  # set the angle between -pi and pi
 
     if channel != -1:
         df = df[df['Channel'] == channel]

@@ -9,19 +9,38 @@ import os
 from scipy import stats
 import argparse
 
+# TODO: Rename the folder in mobility and proximity leaving the space from use-case 1 to use-case1
 
 def create_df(task):
     
     def load_data(task):
         folder_0 = task.split('_')[0]
-        data = load_raw_dataset(f'data_storage/Dataset_AoA_RSS_BLE51/{folder_0}/beacons/beacons_{task}.txt')
+        folder_1 = task.split('_')[1]
+        data = load_raw_dataset(f'data_storage/Dataset_AoA_RSS_BLE51/{folder_0}/beacons/{folder_1}/beacons_{task}.txt')
         return data
-
+    
     def load_gt(task):
         folder_0 = task.split('_')[0]
-        gt = load_gt_dataset(f'data_storage/Dataset_AoA_RSS_BLE51/{folder_0}/gt/gt_{task}.txt')
+        folder_1 = task.split('_')[1]
+        gt = load_gt_dataset(f'data_storage/Dataset_AoA_RSS_BLE51/{folder_0}/gt/{folder_1}/gt_{task}.txt')
+
+        # Add a first row equal to the first original row, but with 'Start_Time' = 'Start_Time' - 100000
+        first_row = gt.iloc[0].copy()
+        first_row['Start_Time'] = first_row['Start_Time'] - 100000
+        gt = pd.concat([first_row.to_frame().T, gt], ignore_index=True)
+        
+        # Update 'End_Time' only if it is NaN
+        gt.loc[gt['End_Time'].isna(), 'End_Time'] = gt['Start_Time'].shift(-1) - 1
+
+        if pd.isnull(gt.loc[gt.index[-1], 'End_Time']):
+            gt.loc[gt.index[-1], 'End_Time'] = gt.loc[gt.index[-1], 'Start_Time'] + 100000
+
+        # convert 'Start_Time' and 'End_Time' to int
+        gt['Start_Time'] = gt['Start_Time'].astype(int)
+        gt['End_Time'] = gt['End_Time'].astype(int)
+
         return gt
-    
+
     gt = load_gt(task)
     data = load_data(task)
     # Merge the data with the ground truth data
@@ -43,7 +62,8 @@ def create_df(task):
     return df
 
 
-def preprocess_df(df, channel, polarization, preprocess, buffer):
+def preprocess_df(df, channel, polarization, buffer):
+
     # Convert cm distances to meters
     df['X'] = df['X'] / 100
     df['Y'] = df['Y'] / 100
@@ -100,31 +120,20 @@ def preprocess_df(df, channel, polarization, preprocess, buffer):
     # df_bc4 = df_bc4.groupby(['Anchor_ID', 'Az_Arrival']).agg({'AoA_Az': 'mean', 'RSS': 'mean'}).reset_index()
     # print(df_bc4)
 
-    pause = input("\nPress Enter to continue...")
-    if preprocess:
-        # For each Distance take the Z score of RSS less than 2
-        df['Distance'] = ((df['X'] - df['Anchor_x'])**2 + (df['Y'] - df['Anchor_y'])**2)**0.5
-        df['zscore_RSS'] = df.groupby(['Anchor_ID', 'Distance'])['RSS'].transform(lambda x: stats.zscore(x))
-        df = df[df['zscore_RSS'].abs() < 2]
-        # df['zscore_AoA_Az'] = df.groupby(['Anchor_ID', 'X', 'Y'])['AoA_Az'].transform(lambda x: stats.zscore(x))
-        # df = df[df['zscore_AoA_Az'].abs() < 2]
-        df['zscore_AoA_Az_x'] = df.groupby(['Anchor_ID', 'Distance'])['AoA_Az_x'].transform(lambda x: stats.zscore(x))
-        df = df[df['zscore_AoA_Az_x'].abs() < 2]
-        df['zscore_AoA_Az_y'] = df.groupby(['Anchor_ID', 'Distance'])['AoA_Az_y'].transform(lambda x: stats.zscore(x))
-        df = df[df['zscore_AoA_Az_y'].abs() < 2]
-
     print(df)
     pause = input("Press Enter to continue...")
 
     df["Epoch_Time_Buffer"] = (df["Epoch_Time"] // buffer).astype(int)
 
     grouped = (
-        df.groupby(["Epoch_Time_Buffer", "X", "Y", "Anchor_ID"], as_index=False)
+        df.groupby(["Epoch_Time_Buffer", "Anchor_ID"], as_index=False)
         .agg({
           "RSS": "last", # "RSS": lambda x: x.mode().iloc[0],  # Take first mode if tie
           # "AoA_Az": "last"
           "AoA_Az_x": "last",
-          "AoA_Az_y": "last"
+          "AoA_Az_y": "last",
+          "X": "last",
+          "Y": "last",
       })
     )
 
@@ -140,7 +149,6 @@ def preprocess_df(df, channel, polarization, preprocess, buffer):
     df_wide = (
         df_wide
         .sort_values(by="Epoch_Time_Buffer")
-        .groupby(["X", "Y"], group_keys=False)
         .apply(lambda g: g.ffill().bfill())
     )
     print(df_wide)
@@ -159,12 +167,12 @@ def parse_args():
     # Create the parser
     parser = argparse.ArgumentParser(description='Build BLE Position dataset')
     parser.add_argument('--task', type=str, help='The cardinal direction', required=True,
-                        choices=['calibration',
-                                 'static_east', 'static_north', 'static_south', 'static_west'])
+                        choices=['mobility_use-case1_run1', 'mobility_use-case1_run2', 'mobility_use-case1_run3', 'mobility_use-case1_run4',
+                                 'mobility_use-case2_run1', 'mobility_use-case2_run2', 'mobility_use-case2_run3', 'mobility_use-case2_run4',
+                                 'mobility_use-case3_run1', 'mobility_use-case3_run2', 'mobility_use-case3_run3', 'mobility_use-case3_run4'])
     parser.add_argument('--channel', type=int, help='The BLE channel', required=True, choices=[37, 38, 39, -1])
     parser.add_argument('--polarization', type=str, help='The BLE polarization', required=True, choices=['1st', '2nd', 'mean'])
     parser.add_argument('--buffer', type=int, help='The buffer time in milliseconds (ms)', required=True)
-    parser.add_argument('--preprocess', action='store_true', help='Preprocess the data removing the outliers')
 
     return parser.parse_args()
 
@@ -177,7 +185,6 @@ def main():
     channel = args.channel
     polarization = args.polarization
     task = args.task
-    preprocess = args.preprocess
     buffer = args.buffer
 
     task_name = f'ble_position_{task}'
@@ -186,7 +193,7 @@ def main():
 
     df = create_df(task)
     print(df)
-    df = preprocess_df(df, channel=channel, polarization=polarization, preprocess=preprocess, buffer=buffer)
+    df = preprocess_df(df, channel=channel, polarization=polarization, buffer=buffer)
     print(df)
 
     # feature_columns = ['RSS', 'AoA_Az']

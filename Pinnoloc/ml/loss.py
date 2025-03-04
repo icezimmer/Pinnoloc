@@ -51,7 +51,7 @@ class PositionLoss(torch.nn.Module):
         else:
             self.std_target = std_target
 
-    def collocation_points(self, anchor_x, anchor_y, path_loss_exponent, device, requires_grad=True):
+    def collocation_points(self, anchor_x, anchor_y, rss_1m, path_loss_exponent, device, requires_grad=True):
         """
         Generate collocation points for the physics loss representing RSSI with normal distribution.
         - Input:
@@ -68,10 +68,13 @@ class PositionLoss(torch.nn.Module):
         # other_collocation = torch.randn(self.n_collocation, n_features - n_anchors, generator=self.generator, device=device, requires_grad=False)
         # P_collocation = -3.0 + 6.0 * torch.rand(self.n_collocation, n_anchors, generator=self.generator, device=device, requires_grad=requires_grad)
         # other_collocation = -3.0 + 6.0 * torch.rand(self.n_collocation,n_features - n_anchors, generator=self.generator, device=device, requires_grad=False)
+        # return P_collocation, other_collocation
 
         n_anchors = len(anchor_x)
-        x_collocation = torch.linspace(1.2, 10.8, 100 * 2 , device=device) # (n_collocation)
-        y_collocation = torch.linspace(1.2, 4.8, 100, device=device) # (n_collocation)
+        # n_collocation is square root of the total number of collocation points that is an int
+        n_collocation = int(self.n_collocation ** 0.5)
+        x_collocation = torch.linspace(1.2, 10.8, 2 * n_collocation , device=device) # (n_collocation)
+        y_collocation = torch.linspace(1.2, 4.8, n_collocation, device=device) # (n_collocation)
 
         X, Y = torch.meshgrid(x_collocation, y_collocation, indexing='ij')
         z_collocation = torch.stack([X.flatten(), Y.flatten()], dim=-1)  # (N, 2)
@@ -105,18 +108,16 @@ class PositionLoss(torch.nn.Module):
         # p = rss_0 - 10 * k * torch.log10(r_collocation)
         # k = torch.as_tensor([1.52, 2.1, 1.53, 1.63], device=device)
         # rss_0 = torch.as_tensor([-58, -59, -58, -58], device=device)
-        k = path_loss_exponent
-        rss_0 = torch.as_tensor([-58, -58, -58, -58], device=device)
-        P_collocation = rss_0.unsqueeze(0) - 10 * k.unsqueeze(0) * torch.log10(r_collocation)  # (N, n_anchors)
+        P_collocation = rss_1m - 10 * path_loss_exponent * torch.log10(r_collocation)  # (N, n_anchors)
+        a_collocation = a_collocation  # (N, n_anchors)
 
-        a_collocation = (a_collocation - self.mean_input[n_anchors:]) / self.std_input[n_anchors:]
         P_collocation = (P_collocation - self.mean_input[:n_anchors]) / self.std_input[:n_anchors]
+        a_collocation = (a_collocation - self.mean_input[n_anchors:]) / self.std_input[n_anchors:]
 
         # P_collocation requires gradient
         P_collocation = P_collocation.detach().clone().requires_grad_(True)
 
         return P_collocation, a_collocation
-        # return P_collocation, other_collocation
     
     # def boundary_collocation_points(self, n_features, n_anchors, device):
     #     """
@@ -170,6 +171,7 @@ class PositionLoss(torch.nn.Module):
                 self._cached_collocation = self.collocation_points(
                     anchor_x=model.anchor_x,
                     anchor_y=model.anchor_y,
+                    rss_1m=model.rss_1m,
                     path_loss_exponent=model.path_loss_exponent,
                     device=inputs.device,
                     requires_grad=True)

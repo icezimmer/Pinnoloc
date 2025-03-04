@@ -80,8 +80,15 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Run BLE Position Static')
     parser.add_argument('--seed_run', type=int, help='Random seed for model run', default=42)
     parser.add_argument('--device', type=str, help='The device to run the model', default='cpu')
-    parser.add_argument('--develop', type=str, help='Choose the dataset to develop', required=True, choices=['calibration', 'static_east', 'static_north', 'static_south', 'static_west'])
-    parser.add_argument('--test', type=str, help='Choose the dataset to test', required=True, choices=['calibration', 'static_east', 'static_north', 'static_south', 'static_west'])
+    parser.add_argument('--develop', type=str, help='Choose the dataset to develop', required=True,
+                        choices=['calibration',
+                                 'static_east', 'static_north', 'static_south', 'static_west'])
+    parser.add_argument('--test', type=str, help='Choose the dataset to test', required=True,
+                        choices=['calibration',
+                                 'static_east', 'static_north', 'static_south', 'static_west',
+                                 'mobility_use-case1_run1', 'mobility_use-case1_run2', 'mobility_use-case1_run3', 'mobility_use-case1_run4',
+                                 'mobility_use-case2_run1', 'mobility_use-case2_run2', 'mobility_use-case2_run3', 'mobility_use-case2_run4',
+                                 'mobility_use-case3_run1', 'mobility_use-case3_run2', 'mobility_use-case3_run3', 'mobility_use-case3_run4'])
 
     # If and only if develop is distinct from test, require the test_split argument
     args, _ = parser.parse_known_args()
@@ -105,18 +112,18 @@ def main():
         'hidden_units': [8],
         'batch_size': 256,
         'lr': 0.1,
-        'weight_decay': 0.0,
+        'weight_decay': 0.01,
         'val_split': 0.2,
         'patience': 10,
-        'reduce_plateau': 0.0,
+        'reduce_plateau': 0.1,
         'num_epochs': 500,
         'lambda_data': 1.0,
-        'lambda_rss': 1.0,
+        'lambda_rss': 0.0,
         'lambda_azimuth': 0.0,
-        'lambda_bc': 1.0,
-        'n_collocation': 100,
+        'lambda_bc': 0.0,
+        'n_collocation': 10000,
         'n_boundary_collocation': 256,
-        'resampling_period': 100
+        'resampling_period': 10
     }
 
     logging.info(f"Setting seed: {seed_run}")
@@ -125,19 +132,52 @@ def main():
     task_name_develop = f'ble_position_{develop}'
     task_name_test = f'ble_position_{test}'
 
-    logging.info(f'Loading {develop} develop and {task_name_test} test datasets.')
+    logging.info(f'Loading {task_name_develop} develop and {task_name_test} test datasets.')
     try:
         if develop == test:
+            test_split = args.test_split
+            develop_split = 1.0 - test_split
             full_dataset = load_data(os.path.join('datasets', task_name_develop, 'full_dataset'))
             develop_dataset, test_dataset = random_split_dataset(full_dataset, val_split=args.test_split)
         else:
+            develop_split = 1.0
+            test_split = 1.0
             develop_dataset = load_data(os.path.join('datasets', task_name_develop, 'full_dataset'))
             test_dataset = load_data(os.path.join('datasets', task_name_test, 'full_dataset'))
+        develop_args = read_yaml_to_dict(os.path.join('datasets', task_name_develop, 'dataset_args.yaml'))
+        develop_args = {f'develop_{key}': value for key, value in develop_args.items()}
+        develop_args['develop_split'] = develop_split
+        test_args = read_yaml_to_dict(os.path.join('datasets', task_name_test, 'dataset_args.yaml'))
+        test_args = {f'test_{key}': value for key, value in test_args.items()}
+        test_args['test_split'] = test_split
     except FileNotFoundError:
         logging.error(f"Dataset not found for {task_name_develop} develop and/or {task_name_test} test.")
 
+        # create a csv file to save the hyperparameters and scores
+    file_path = os.path.join('results', f'ble_position_{develop}_{test}.csv')
+    os.makedirs(os.path.dirname(file_path), exist_ok=True)
+    # Check if the file exists
+    file_exists = os.path.exists(file_path)
+
+    # Open the file in append model
+    with open(file_path, 'a', newline='') as f:
+        writer = csv.writer(f)
+        
+        # Write header only if the file is not created or empty
+        if not file_exists or os.stat(file_path).st_size == 0:
+            writer.writerow(['seed_search', 'seed_run'] + list(hyperparameters.keys()) +
+                            ['test_mse', 'test_rmse', 'test_50th', 'test_75th', 'test_90th', 'test_mae', 'test_min_ae', 'test_max_ae'] +
+                            list(develop_args.keys()) + list(test_args.keys()))
+
 
     scores = run_ble_position(seed_run, device, develop_dataset, test_dataset, hyperparameters, verbose=True, plot=True)
+
+    # save hyperparameters and scores in a new row of a CSV file
+    with open(file_path, 'a') as f:
+        writer = csv.writer(f)
+        writer.writerow([None, seed_run] +  list(hyperparameters.values())
+                        + list(scores.values()) +
+                        list(develop_args.values()) + list(test_args.values()))
 
 
 def run_ble_position(seed, device, develop_dataset, test_dataset, hyperparameters, verbose=False, plot=False):
@@ -245,17 +285,13 @@ def run_ble_position(seed, device, develop_dataset, test_dataset, hyperparameter
                 targets.append(target)
 
             # Concatenate all tensors into one for proper calculations
-            predictions, targets = torch.cat(predictions, dim=0), torch.cat(targets, dim=0)
+            predictions = torch.cat(predictions, dim=0)
+            targets = torch.cat(targets, dim=0)
             predictions = predictions * y_std + y_mean
             targets = targets * y_std + y_mean
 
-        #     anchor_x=[0.0, 6.0, 12.0, 6.0]
-        #     anchor_x = torch.as_tensor(anchor_x, dtype=torch.float32)
-        #     anchor_y=[3.0, 0.0, 3.0, 6.0]
-        #     anchor_y = torch.as_tensor(anchor_y, dtype=torch.float32)
-
         
-        #     P_collocation, a_collocation = criterion.collocation_points(anchor_x, anchor_y, path_loss_exponent=model.path_loss_exponent, device='cpu')
+        #     P_collocation, a_collocation = criterion.collocation_points(model.anchor_x, model.anchor_y, rss_1m=model.rss_1m, path_loss_exponent=model.path_loss_exponent, device='cpu')
         #     collocation = torch.cat((P_collocation, a_collocation), dim=1)
 
         #     predictions = model(collocation)
@@ -267,11 +303,13 @@ def run_ble_position(seed, device, develop_dataset, test_dataset, hyperparameter
 
 
         plt.figure(num=1)
+        # Set font size
+        plt.rcParams.update({'font.size': 14})
         # plt.arrow(5.0, 7.5, cardinal_directions[f'{test}'][0], cardinal_directions[f'{test}'][1], head_width=0.3, head_length=0.3, fc='black', ec='black')
-        # plt.text(5.0, 7.5, test, fontsize=10)
+        # plt.text(5.0, 7.5, test)
         plt.plot([0, 12, 12, 0, 0], [0, 0, 6, 6, 0], 'k-')
         x_anchors, y_anchors = zip(*anchor_positions.values())
-        plt.scatter(x_anchors, y_anchors, s=100, color='red', marker='s', label='Anchors')
+        plt.scatter(x_anchors, y_anchors, s=100, color='yellow', marker='s', label='Anchors')
         for anchor_id, (x, y) in anchor_positions.items():
             plt.text(x, y, anchor_id, fontsize=10)
         plt.scatter(targets[:,0:1], targets[:,1:2], color='red', marker='.', alpha=0.3, label='Target Points')
@@ -279,8 +317,10 @@ def run_ble_position(seed, device, develop_dataset, test_dataset, hyperparameter
         plt.grid(True)
         plt.xlabel('x (m)')
         plt.ylabel('y (m)')
+
         plt.title('True Positions vs Predicted Positions')
-        plt.legend()
+        # Put not overlapping legend outside the plot
+        plt.legend(loc='upper right', bbox_to_anchor=(1.0, 1.0), fontsize='x-small')
         plt.show()
 
     return scores

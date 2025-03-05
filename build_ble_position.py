@@ -22,8 +22,18 @@ def create_df(task):
         gt = load_gt_dataset(f'data_storage/Dataset_AoA_RSS_BLE51/{folder_0}/gt/gt_{task}.txt')
         return gt
     
-    gt = load_gt(task)
-    data = load_data(task)
+    if task == 'static_all':
+        task_list = ['static_east', 'static_north', 'static_south', 'static_west']
+        gt_list = [load_gt(task) for task in task_list]
+        data_list = [load_data(task) for task in task_list]
+        gt = pd.concat(gt_list)
+        data = pd.concat(data_list)
+        gt = gt.sort_values(by='Start_Time')
+        data = data.sort_values(by='Epoch_Time')
+    else: 
+        gt = load_gt(task)
+        data = load_data(task)
+
     # Merge the data with the ground truth data
     df = pd.merge_asof(data, gt, left_on='Epoch_Time', right_on='Start_Time', direction='backward')
     # Filter the rows where the epoch time is within the interval [Start_Time, End_Time]
@@ -160,7 +170,8 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Build BLE Position dataset')
     parser.add_argument('--task', type=str, help='The cardinal direction', required=True,
                         choices=['calibration',
-                                 'static_east', 'static_north', 'static_south', 'static_west'])
+                                 'static_east', 'static_north', 'static_south', 'static_west',
+                                 'static_all'])
     parser.add_argument('--channel', type=int, help='The BLE channel', required=True, choices=[37, 38, 39, -1])
     parser.add_argument('--polarization', type=str, help='The BLE polarization', required=True, choices=['1st', '2nd', 'mean'])
     parser.add_argument('--buffer', type=int, help='The buffer time in milliseconds (ms)', required=True)

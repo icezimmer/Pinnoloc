@@ -82,10 +82,12 @@ def parse_args():
     parser.add_argument('--device', type=str, help='The device to run the model', default='cpu')
     parser.add_argument('--develop', type=str, help='Choose the dataset to develop', required=True,
                         choices=['calibration',
-                                 'static_east', 'static_north', 'static_south', 'static_west'])
+                                 'static_east', 'static_north', 'static_south', 'static_west',
+                                 'static_all'])
     parser.add_argument('--test', type=str, help='Choose the dataset to test', required=True,
                         choices=['calibration',
                                  'static_east', 'static_north', 'static_south', 'static_west',
+                                 'static_all',
                                  'mobility_use-case1_run1', 'mobility_use-case1_run2', 'mobility_use-case1_run3', 'mobility_use-case1_run4',
                                  'mobility_use-case2_run1', 'mobility_use-case2_run2', 'mobility_use-case2_run3', 'mobility_use-case2_run4',
                                  'mobility_use-case3_run1', 'mobility_use-case3_run2', 'mobility_use-case3_run3', 'mobility_use-case3_run4'])

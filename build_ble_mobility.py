@@ -16,12 +16,16 @@ def create_df(task):
     def load_data(task):
         folder_0 = task.split('_')[0]
         folder_1 = task.split('_')[1]
+        # Add space in folder_1: from 'use-casek' to 'use-case k'
+        folder_1 = folder_1[:8] + ' ' + folder_1[8:]
         data = load_raw_dataset(f'data_storage/Dataset_AoA_RSS_BLE51/{folder_0}/beacons/{folder_1}/beacons_{task}.txt')
         return data
     
     def load_gt(task):
         folder_0 = task.split('_')[0]
         folder_1 = task.split('_')[1]
+        # Add space in folder_1: from 'use-casek' to 'use-case k'
+        folder_1 = folder_1[:8] + ' ' + folder_1[8:]
         gt = load_gt_dataset(f'data_storage/Dataset_AoA_RSS_BLE51/{folder_0}/gt/{folder_1}/gt_{task}.txt')
 
         # Add a first row equal to the first original row, but with 'Start_Time' = 'Start_Time' - 100000

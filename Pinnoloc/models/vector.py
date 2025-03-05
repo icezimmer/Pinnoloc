@@ -129,7 +129,6 @@ class PositionModel(StackedVectorModel):
                  anchor_y=[3.0, 0.0, 3.0, 6.0],
                  rss_1m=[-55.0, -55.0, -55.0, -55.0],
                  path_loss_exponent=[1.7, 1.7, 1.7, 1.7],
-                 # path_loss_exponent=[1.52, 2.1, 1.53, 1.63],
                  z_0=[[1.2, 1.2],
                       [10.8, 1.2],
                       [10.8, 4.8],
@@ -161,15 +160,19 @@ class PositionModel(StackedVectorModel):
         log10 = torch.log(torch.as_tensor(10.0, dtype=torch.float32))
         k = log10 / (10.0 * path_loss_exponent)
         k = torch.as_tensor(k, dtype=torch.float32)
-        self.k = nn.Parameter(k, requires_grad=False)
+        self.k = nn.Parameter(k, requires_grad=True)
 
         rss_0 = torch.as_tensor(rss_0, dtype=torch.float32)
         self.register_buffer('rss_0', rss_0)
 
         a_0 = torch.as_tensor(a_0, dtype=torch.float32)
-        self.register_buffer('a_0', a_0)
+        ux_0 = torch.cos(a_0)
+        uy_0 = torch.sin(a_0)
+        u_0 = torch.cat((ux_0, uy_0), dim=-1)
+        self.register_buffer('u_0', u_0)
 
         z_0 = torch.as_tensor(z_0, dtype=torch.float32)
+        
         self.z_0 = nn.Parameter(z_0, requires_grad=False)
 
     # @property

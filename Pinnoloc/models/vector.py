@@ -137,10 +137,13 @@ class PositionModel(StackedVectorModel):
                         [-83.0, -79.0, -66.0, -72.0],
                         [-84.0, -79.0, -71.0, -83.0],
                         [-73.0, -74.0, -73.0, -79.0]],
-                 a_0=[[-0.977384, 2.897247, -2.984513, -2.356194],
-                      [-0.157080, 0.244346, -2.164208, -0.785398],
-                      [0.157080, 0.785398, 2.164208, -0.244346],
-                      [0.977384, 2.356194, 2.984513, -2.897247]]
+                 a_0=[[-56, -90+76, -180+9, 90-45],
+                      [-9, -90-76, -180+56, 90+45],
+                      [9, -90-45, -180-56, 90+76],
+                      [56, -90+45, -180-9, 90-76]]
+                # z_0=[[3.0, 3.0]],
+                # rss_0=[[-22.0, -72.0, -72.0, -72.0]],
+                # a_0=[[0.0, 90.0, 180.0, -90.0]]
                  ):
         super(PositionModel, self).__init__(n_layers, d_input, hidden_units, 2, activation, use_batchnorm, dropout_rate)
 
@@ -166,14 +169,14 @@ class PositionModel(StackedVectorModel):
         self.register_buffer('rss_0', rss_0)
 
         a_0 = torch.as_tensor(a_0, dtype=torch.float32)
+        a_0 = torch.deg2rad(a_0)
         ux_0 = torch.cos(a_0)
         uy_0 = torch.sin(a_0)
         u_0 = torch.cat((ux_0, uy_0), dim=-1)
         self.register_buffer('u_0', u_0)
 
         z_0 = torch.as_tensor(z_0, dtype=torch.float32)
-        
-        self.z_0 = nn.Parameter(z_0, requires_grad=False)
+        self.z_0 = nn.Parameter(z_0, requires_grad=True)
 
     # @property
     # def k(self):

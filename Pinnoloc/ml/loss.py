@@ -78,21 +78,18 @@ class PositionLoss(torch.nn.Module):
 
         # compute z_collocation - anchor_z
         z_collocation = z_collocation.unsqueeze(1)  # (N, 1, 2)
-
-        # anchor_z = anchor_z.unsqueeze(0)  # (1, n_anchors, 2)
-        z_collocation = z_collocation - anchor_z.unsqueeze(0)  # (N, n_anchors, 2)
+        anchor_z = anchor_z.unsqueeze(0)  # (1, n_anchors, 2)
+        z_collocation = z_collocation - anchor_z  # (N, n_anchors, 2)
 
         # compute the distance
         r_collocation = torch.norm(z_collocation, p=2, dim=-1)  # (N, n_anchors)
-
         # compute the RSSI
         P_collocation = rss_1m - 10 * path_loss_exponent * torch.log10(r_collocation)  # (N, n_anchors)
-        
-        P_collocation = P_collocation + 10 * torch.randn(N, n_anchors, generator=self.generator, device=device)
+        P_collocation = P_collocation + 5 * torch.randn(N, n_anchors, generator=self.generator, device=device)
 
         # compute the azimuth angle
         a_collocation = torch.atan2(z_collocation[:,:,1], z_collocation[:,:,0])  # (N, n_anchors)
-        a_collocation = a_collocation + 10 * torch.randn(N, n_anchors, generator=self.generator, device=device)
+        a_collocation = a_collocation + torch.deg2rad(torch.as_tensor(10)) * torch.randn(N, n_anchors, generator=self.generator, device=device)
 
         ux_collocation = torch.cos(a_collocation)  # (N, n_anchors)
         uy_collocation = torch.sin(a_collocation)  # (N, n_anchors)
@@ -189,12 +186,12 @@ class PositionLoss(torch.nn.Module):
             y_collocation = y_collocation - model.anchor_y  # (N, n_anchors)
             distance_2 = torch.clamp(torch.pow(x_collocation, 2) + torch.pow(y_collocation, 2), min=1e-8)  # (N, n_anchors)
 
-            residual_x = dx_dP + torch.einsum('h,nh->nh', model.k, x_collocation)
-            residual_y = dy_dP + torch.einsum('h,nh->nh', model.k, y_collocation)
+            residual_x = dx_dP + torch.einsum('h,nh->nh', model.k, x_collocation)  # (N, n_anchors)
+            residual_y = dy_dP + torch.einsum('h,nh->nh', model.k, y_collocation)  # (N, n_anchors)
             rss_loss = torch.mean(torch.pow(residual_x, 2)) + torch.mean(torch.pow(residual_y, 2))
 
             # a_collocation = torch.atan2(y_collocation, x_collocation)
-            residual_azimuth = torch.einsum('nh,nh->nh', x_collocation / distance_2, dy_dP) + torch.einsum('nh,nh->nh', y_collocation / distance_2, dx_dP)
+            residual_azimuth = torch.einsum('nh,nh->nh', x_collocation / distance_2, dy_dP) - torch.einsum('nh,nh->nh', y_collocation / distance_2, dx_dP)
             azimuth_loss = torch.mean(torch.pow(residual_azimuth, 2))
 
             # boundary_collocation = self._cached_boundary

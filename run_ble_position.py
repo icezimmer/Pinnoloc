@@ -121,10 +121,10 @@ def main():
         'num_epochs': 500,
         'lambda_data': 1.0,
         'lambda_rss': 1.0,
-        'lambda_azimuth': 1.0,
+        'lambda_azimuth': 0.0,
         'lambda_bc': 0.0,
-        'n_collocation': 10000,
-        'n_boundary_collocation': 256,
+        'n_collocation': 40000,
+        'n_boundary_collocation': 20000,
         'resampling_period': 10
     }
 

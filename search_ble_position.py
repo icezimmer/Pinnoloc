@@ -70,8 +70,9 @@ def main():
         'lambda_data': (0.0, 1.0),
         'lambda_rss': (0.0, 1.0),
         'lambda_azimuth': (0.0, 1.0),
-        'lambda_bc': (0.0, 1.0),
-        'n_collocation': [8192],
+        # 'lambda_bc': (0.0, 1.0),
+        'lambda_bc': [0.0],
+        'n_collocation': [20000],
         'n_boundary_collocation': [256],
         'resampling_period': [10]
     }

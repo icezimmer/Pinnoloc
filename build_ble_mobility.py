@@ -28,18 +28,24 @@ def create_df(task):
         folder_1 = folder_1[:8] + ' ' + folder_1[8:]
         gt = load_gt_dataset(f'data_storage/Dataset_AoA_RSS_BLE51/{folder_0}/gt/{folder_1}/gt_{task}.txt')
 
-        # Add a first row equal to the first original row, but with 'Start_Time' = 'Start_Time' - 100000
-        first_row = gt.iloc[0].copy()
-        first_row['Start_Time'] = first_row['Start_Time'] - 100000
-        gt = pd.concat([first_row.to_frame().T, gt], ignore_index=True)
+        # # Add a first row equal to the first original row, but with 'Start_Time' = 'Start_Time' - 100000
+        # first_row = gt.iloc[0].copy()
+        # first_row['Start_Time'] = first_row['Start_Time'] - 100000
+        # gt = pd.concat([first_row.to_frame().T, gt], ignore_index=True)
         
-        # Update 'End_Time' only if it is NaN
-        gt.loc[gt['End_Time'].isna(), 'End_Time'] = gt['Start_Time'].shift(-1) - 1
+        # # Update 'End_Time' only if it is NaN
+        # gt.loc[gt['End_Time'].isna(), 'End_Time'] = gt['Start_Time'].shift(-1) - 1
 
-        if pd.isnull(gt.loc[gt.index[-1], 'End_Time']):
-            gt.loc[gt.index[-1], 'End_Time'] = gt.loc[gt.index[-1], 'Start_Time'] + 100000
+        # if pd.isnull(gt.loc[gt.index[-1], 'End_Time']):
+        #     gt.loc[gt.index[-1], 'End_Time'] = gt.loc[gt.index[-1], 'Start_Time'] + 100000
 
-        # convert 'Start_Time' and 'End_Time' to int
+        # # convert 'Start_Time' and 'End_Time' to int
+        # gt['Start_Time'] = gt['Start_Time'].astype(int)
+        # gt['End_Time'] = gt['End_Time'].astype(int)
+
+        gt.loc[gt['End_Time'].isna(), 'End_Time'] = gt['Start_Time'] + 250
+        gt['Start_Time'] = gt['Start_Time'] - 250
+
         gt['Start_Time'] = gt['Start_Time'].astype(int)
         gt['End_Time'] = gt['End_Time'].astype(int)
 

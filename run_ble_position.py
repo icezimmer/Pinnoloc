@@ -120,11 +120,11 @@ def main():
         'reduce_plateau': 0.1,
         'num_epochs': 500,
         'lambda_data': 1.0,
-        'lambda_rss': 1.0,
+        'lambda_rss': 0.0,
         'lambda_azimuth': 0.0,
         'lambda_bc': 0.0,
-        'n_collocation': 40000,
-        'n_boundary_collocation': 20000,
+        'n_collocation': 20000,
+        'n_boundary_collocation': 256,
         'resampling_period': 10
     }
 
@@ -155,7 +155,7 @@ def main():
     except FileNotFoundError:
         logging.error(f"Dataset not found for {task_name_develop} develop and/or {task_name_test} test.")
 
-        # create a csv file to save the hyperparameters and scores
+    # create a csv file to save the hyperparameters and scores
     file_path = os.path.join('results', f'ble_position_{develop}_{test}.csv')
     os.makedirs(os.path.dirname(file_path), exist_ok=True)
     # Check if the file exists
@@ -260,6 +260,13 @@ def run_ble_position(seed, device, develop_dataset, test_dataset, hyperparameter
                             patience=patience, reduce_plateau=reduce_plateau, num_epochs=num_epochs, verbose=verbose)
     logging.info(f"Model fitted.")
 
+    # plt.plot(trainer.training_loss, label='Training Loss')
+    # plt.plot(trainer.validation_loss, label='Validation Loss')
+    # plt.xlabel('Epoch')
+    # plt.ylabel('Loss')
+    # plt.legend()
+    # plt.show()
+
     logging.info('Evaluating model on develop set.')
     eval_dev = EvaluateRegressor(model=model, dataloader=develop_dataloader)
     eval_dev.evaluate(mean=y_mean, std=y_std, verbose=verbose)
@@ -291,18 +298,6 @@ def run_ble_position(seed, device, develop_dataset, test_dataset, hyperparameter
             targets = torch.cat(targets, dim=0)
             predictions = predictions * y_std + y_mean
             targets = targets * y_std + y_mean
-
-        
-        #     P_collocation, a_collocation = criterion.collocation_points(model.anchor_x, model.anchor_y, rss_1m=model.rss_1m, path_loss_exponent=model.path_loss_exponent, device='cpu')
-        #     collocation = torch.cat((P_collocation, a_collocation), dim=1)
-
-        #     predictions = model(collocation)
-        #     predictions = predictions * y_std + y_mean
-
-        # plt.scatter(predictions[:,0:1], predictions[:,1:2], color='blue', marker='.', alpha=0.3, label='Predicted Points')
-        # plt.show()
-
-
 
         plt.figure(num=1)
         # Set font size

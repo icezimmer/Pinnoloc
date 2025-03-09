@@ -90,9 +90,6 @@ class TrainModel:
         if plot_path is not None:
             self._plot(plot_path)
 
-        self.training_loss = []
-        self.validation_loss = []
-
     def _plot(self, plot_path):
         plt.figure(figsize=(10, 5))
         plt.plot(self.training_loss, label='Training loss')
@@ -116,6 +113,10 @@ class TrainPhysicsModel:
         self.develop_dataloader = develop_dataloader
         self.training_loss = []
         self.validation_loss = []
+    
+    def reset(self):
+        self.training_loss = []
+        self.validation_loss = []
 
     def _epoch(self, dataloader, verbose):
         self.model.train()
@@ -130,8 +131,6 @@ class TrainPhysicsModel:
             self.optimizer.step()
 
             running_loss += loss.item()
-
-            # self.criterion.plot(self.model, input_, target)
 
         return running_loss / len(dataloader)
 
@@ -160,9 +159,6 @@ class TrainPhysicsModel:
 
         if plot_path is not None:
             self._plot(plot_path)
-
-        self.training_loss = []
-        self.validation_loss = []
 
     def early_stopping(self, train_dataloader, val_dataloader, patience, reduce_plateau, num_epochs=float('inf'),
                        verbose=True, plot_path=None):
@@ -199,9 +195,6 @@ class TrainPhysicsModel:
 
         if plot_path is not None:
             self._plot(plot_path)
-
-        self.training_loss = []
-        self.validation_loss = []
 
     def _plot(self, plot_path):
         plt.figure(figsize=(10, 5))

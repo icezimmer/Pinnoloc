@@ -125,29 +125,60 @@ class PositionModel(StackedVectorModel):
                  activation=nn.Tanh,
                  use_batchnorm=False, 
                  dropout_rate=0.0,
+                 min_x=1.2,
+                 max_x=10.8,
+                 min_y=1.2,
+                 max_y=4.8,
                  anchor_x=[0.0, 6.0, 12.0, 6.0],
                  anchor_y=[3.0, 0.0, 3.0, 6.0],
                  rss_1m=[-55.0, -55.0, -55.0, -55.0],
                  path_loss_exponent=[1.7, 1.7, 1.7, 1.7],
-                 z_0=[[1.2, 1.2],
+                 sigma_rss=5.0,
+                 sigma_aoa=10.0,
+                 z_bc=[[1.2, 1.2],
                       [10.8, 1.2],
                       [10.8, 4.8],
                       [1.2, 4.8]],
-                 rss_0=[[-68.0, -78.0, -80.0, -76.0],
+                 rss_bc=[[-68.0, -78.0, -80.0, -76.0],
                         [-83.0, -79.0, -66.0, -72.0],
                         [-84.0, -79.0, -71.0, -83.0],
                         [-73.0, -74.0, -73.0, -79.0]],
-                 a_0=[[-56, -90+76, -180+9, 90-45],
+                 aoa_bc=[[-56, -90+76, -180+9, 90-45],
                       [-9, -90-76, -180+56, 90+45],
                       [9, -90-45, -180-56, 90+76],
                       [56, -90+45, -180-9, 90-76]]
-                # z_0=[[3.0, 3.0]],
-                # rss_0=[[-22.0, -72.0, -72.0, -72.0]],
-                # a_0=[[0.0, 90.0, 180.0, -90.0]]
                  ):
+        """
+        Initialize the PositionModel.
+        Inputs:
+        - n_layers: Number of hidden layers in the model
+        - d_input: Dimension of the input
+        - hidden_units: List of hidden units in each layer
+        - activation: Activation function
+        - use_batchnorm: Use batch normalization
+        - dropout_rate: Dropout rate
+        - min_x: Minimum x-coordinate (float)
+        - max_x: Maximum x-coordinate (float)
+        - min_y: Minimum y-coordinate (float)
+        - max_y: Maximum y-coordinate (float)
+        - anchor_x: x-coordinate of the anchors (list of float of shape (n_anchors,))
+        - anchor_y: y-coordinate of the anchors (list of float of shape (n_anchors,))
+        - rss_1m: RSS at 1m from the anchors (list of float of shape (n_anchors,))
+        - path_loss_exponent: Path loss exponent (list of float of shape (n_anchors,))
+        - sigma_rss: Standard deviation of RSS (float)
+        - sigma_aoa: Standard deviation of AoA (float)
+        - z_bc: Ground truth positions (list of list of float of shape (n_points, 2))
+        - rss_bc: RSS measurements (list of list of float of shape (n_points, n_anchors))
+        - aoa_bc: AoA measurements (list of list of float of shape (n_points, n_anchors))
+        """
         super(PositionModel, self).__init__(n_layers, d_input, hidden_units, 2, activation, use_batchnorm, dropout_rate)
 
-        # Define buffer of model
+        self.min_x, self.max_x = min_x, max_x
+        self.min_y, self.max_y = min_y, max_y
+
+        self.sigma_rss = sigma_rss
+        self.sigma_aoa = sigma_aoa
+        
         anchor_x = torch.as_tensor(anchor_x, dtype=torch.float32)
         self.register_buffer('anchor_x', anchor_x)
 
@@ -165,18 +196,18 @@ class PositionModel(StackedVectorModel):
         k = torch.as_tensor(k, dtype=torch.float32)
         self.k = nn.Parameter(k, requires_grad=True)
 
-        rss_0 = torch.as_tensor(rss_0, dtype=torch.float32)
-        self.register_buffer('rss_0', rss_0)
+        rss_bc = torch.as_tensor(rss_bc, dtype=torch.float32)
+        self.register_buffer('rss_bc', rss_bc)
 
-        a_0 = torch.as_tensor(a_0, dtype=torch.float32)
-        a_0 = torch.deg2rad(a_0)
-        ux_0 = torch.cos(a_0)
-        uy_0 = torch.sin(a_0)
-        u_0 = torch.cat((ux_0, uy_0), dim=-1)
-        self.register_buffer('u_0', u_0)
+        aoa_bc = torch.as_tensor(aoa_bc, dtype=torch.float32)
+        aoa_bc = torch.deg2rad(aoa_bc)
+        ux_bc = torch.cos(aoa_bc)
+        uy_bc = torch.sin(aoa_bc)
+        u_bc = torch.cat((ux_bc, uy_bc), dim=-1)
+        self.register_buffer('u_bc', u_bc)
 
-        z_0 = torch.as_tensor(z_0, dtype=torch.float32)
-        self.z_0 = nn.Parameter(z_0, requires_grad=True)
+        z_bc = torch.as_tensor(z_bc, dtype=torch.float32)
+        self.z_bc = nn.Parameter(z_bc, requires_grad=True)
 
     # @property
     # def k(self):

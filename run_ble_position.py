@@ -111,12 +111,12 @@ def main():
         'patience': 10,
         'reduce_plateau': 0.1,
         'num_epochs': 500,
-        'lambda_data': 0.1,
-        'lambda_rss': 0.5,
-        'lambda_azimuth': 0.5,
+        'lambda_data': 1.0,
+        'lambda_rss': 0.0,
+        'lambda_azimuth': 0.0,
         'lambda_bc': 0.0,
         'n_collocation': 20000,
-        'n_boundary_collocation': 256,
+        'n_boundary_collocation': 0,
         'resampling_period': 10
     }
 

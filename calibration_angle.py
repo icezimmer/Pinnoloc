@@ -133,37 +133,6 @@ def main():
     plt.legend()
     plt.show()
 
-    # exp10_X = df_mini['Distance'].values
-    # # Take the logarithm (base 10) of the distances
-    # X = np.log10(exp10_X).reshape(-1, 1)
-    # y = df_mini['RSS_mean'].values
-    # # Fit a linear regression model
-    # model = LinearRegression()
-    # model.fit(X, y)
-    # slope = model.coef_[0]
-    # intercept = model.intercept_
-    # # From the model:
-    # # RSS = intercept + slope * log10(distance)
-    # # slope = -10 * alpha  => alpha = -slope / 10
-    # alpha = -slope / 10
-    # RSS_1m = intercept  # If your reference distance d_0 = 1 meter
-    # print("Estimated path loss exponent (alpha):", alpha)
-    # print("Estimated RSS at 1 meter (RSS_1m):", RSS_1m)
-
-    # Plot the distances to the anchor vs. the RSS values
-    # exp10_X_all = df['Distance'].values
-    # y_all = df['RSS'].values
-    # plt.figure(num=2)
-    # plt.scatter(exp10_X_all, y_all, color='blue', marker='.', alpha=0.3, label='RSS values')
-    # plt.scatter(exp10_X, y, color='red', marker='*', label='Mean RSS values')
-    # plt.plot(exp10_X, model.predict(X), color='black', label='Log10 Regression Model')
-    # plt.xlabel('Distance')
-    # plt.ylabel('RSS')
-    # plt.title(f'Anchor:{anchor}, Channel:{channel}, Polarization:{polarization}')
-    # plt.grid(True)
-    # plt.legend()
-    # plt.show()
-
 
 if __name__ == "__main__":
     main()

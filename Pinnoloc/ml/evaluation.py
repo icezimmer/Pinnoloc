@@ -151,14 +151,14 @@ class EvaluateRegressor:
 
         # If mean and std are provided, unnormalize the data
         if mean is not None and std is not None:
-            predictions = predictions * std + mean
-            targets = targets * std + mean
+            predictions = predictions * std.to(self.device) + mean.to(self.device)
+            targets = targets * std.to(self.device) + mean.to(self.device)
 
         # Compute the Euclidean distances between predictions and targets
         distances = torch.norm(predictions - targets, p=2, dim=1)  # Shape: (N,)
 
         # Compute the 50th, 75th, and 90th percentile
-        quantiles = torch.quantile(distances, torch.tensor([0.50, 0.75, 0.90]))
+        quantiles = torch.quantile(distances, torch.tensor([0.50, 0.75, 0.90], device=self.device))
 
         self.mse    = distances.pow(2).mean().item()         # mean of squared distances
         self.rmse   = distances.pow(2).mean().sqrt().item()  # root mean squared error

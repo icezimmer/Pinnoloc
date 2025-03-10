@@ -25,14 +25,6 @@ import argparse
 import csv
 
 
-cardinal_directions = {
-    'east': (1.0, 0.0),
-    'north': (0.0, 1.0),
-    'south': (0.0, -1.0),
-    'west': (-1.0, 0.0)
-}
-
-
 anchor_positions = {
     '6501': (0.0, 3.0),
     '6502': (6.0, 0.0),
@@ -119,9 +111,9 @@ def main():
         'patience': 10,
         'reduce_plateau': 0.1,
         'num_epochs': 500,
-        'lambda_data': 1.0,
-        'lambda_rss': 0.0,
-        'lambda_azimuth': 0.0,
+        'lambda_data': 0.1,
+        'lambda_rss': 0.5,
+        'lambda_azimuth': 0.5,
         'lambda_bc': 0.0,
         'n_collocation': 20000,
         'n_boundary_collocation': 256,
@@ -250,6 +242,7 @@ def run_ble_position(seed, device, develop_dataset, test_dataset, hyperparameter
                              n_collocation=n_collocation, n_boundary_collocation=n_boundary_collocation,
                              seed=seed,
                              mean_input=x_mean, std_input=x_std, mean_target=y_mean, std_target=y_std)
+    criterion.to(device=torch.device(device))
     optimizer = optim.AdamW(params=model.parameters(), lr=lr, weight_decay=weight_decay)
     trainer = TrainPhysicsModel(model=model, optimizer=optimizer, criterion=criterion,
                                 resampling_period=resampling_period,
@@ -280,14 +273,13 @@ def run_ble_position(seed, device, develop_dataset, test_dataset, hyperparameter
 
     if plot:
         # scatter plot of y_true vs y_pred
+        model.to('cpu')
         model.eval()
         with torch.no_grad():
             predictions = []
             targets = []
             
             for input_, target in tqdm(test_dataloader):
-                input_ = input_.to(device)
-                target = target.to(device)
 
                 output = model(input_)  # Model outputs continuous values (not logits)
                 predictions.append(output)

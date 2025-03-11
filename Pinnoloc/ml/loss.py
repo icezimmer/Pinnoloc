@@ -115,16 +115,23 @@ class PositionLoss(torch.nn.Module):
             - P_collocation: RSSI values at collocation points.
             - other_collocation: Other features at collocation points
         """
-        x_ratio = math.floor((max_x - min_x) / (max_y - min_y))
-        n = int(math.sqrt(self.n_collocation))
-        x_collocation = torch.linspace(min_x, max_x, x_ratio * n, dtype=torch.float32)
-        y_collocation = torch.linspace(min_y, max_y, n, dtype=torch.float32)
+        # x_ratio = math.floor((max_x - min_x) / (max_y - min_y))
+        # n = int(math.sqrt(self.n_collocation))
+        # x_collocation = torch.linspace(min_x, max_x, x_ratio * n, dtype=torch.float32)
+        # y_collocation = torch.linspace(min_y, max_y, n, dtype=torch.float32)
+
+        # Estimate the number of points in x and y directions
+        n_x = round((self.n_collocation * ((max_x - min_x) / (max_y - min_y))) ** 0.5)
+        n_y = round(self.n_collocation / n_x)
+
+        # Create evenly spaced points along x and y
+        x_collocation = torch.linspace(min_x, max_x, n_x, dtype=torch.float32)
+        y_collocation = torch.linspace(min_y, max_y, n_y, dtype=torch.float32)
 
         X, Y = torch.meshgrid(x_collocation, y_collocation, indexing='ij')
         z_collocation = torch.stack([X.flatten(), Y.flatten()], dim=-1)  # (N, 2)
 
         anchor_z = torch.stack([self.anchor_x, self.anchor_y], dim=-1)  # (n_anchors, 2)
-
         # compute differences z_collocation - anchor_z
         z_collocation = z_collocation.unsqueeze(1)  # (N, 1, 2)
         anchor_z = anchor_z.unsqueeze(0)  # (1, n_anchors, 2)

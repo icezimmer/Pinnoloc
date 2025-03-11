@@ -115,7 +115,7 @@ def main():
         'lambda_rss': 0.0,
         'lambda_azimuth': 0.0,
         'lambda_bc': 0.0,
-        'n_collocation': 20000,
+        'n_collocation': 256,
         'n_boundary_collocation': 0,
         'resampling_period': 10
     }
@@ -227,9 +227,6 @@ def run_ble_position(seed, device, develop_dataset, test_dataset, hyperparameter
     test_dataloader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
     logging.info(f'Initializing model.')
-    # model = PositionModel(n_layers=n_layers, d_input=d_input, hidden_units=hidden_units,
-    #                       anchor_x=anchor_x, anchor_y=anchor_y,
-    #                       path_loss_exponent=path_loss_exponent, rss_1m=rss_1m)
     model = PositionModel(n_layers=n_layers, d_input=d_input, hidden_units=hidden_units)
 
     # print_num_trainable_params(model)
@@ -294,8 +291,6 @@ def run_ble_position(seed, device, develop_dataset, test_dataset, hyperparameter
         plt.figure(num=1)
         # Set font size
         plt.rcParams.update({'font.size': 14})
-        # plt.arrow(5.0, 7.5, cardinal_directions[f'{test}'][0], cardinal_directions[f'{test}'][1], head_width=0.3, head_length=0.3, fc='black', ec='black')
-        # plt.text(5.0, 7.5, test)
         plt.plot([0, 12, 12, 0, 0], [0, 0, 6, 6, 0], 'k-')
         x_anchors, y_anchors = zip(*anchor_positions.values())
         plt.scatter(x_anchors, y_anchors, s=100, color='yellow', marker='s', label='Anchors')
@@ -303,6 +298,9 @@ def run_ble_position(seed, device, develop_dataset, test_dataset, hyperparameter
             plt.text(x, y, anchor_id, fontsize=10)
         plt.scatter(targets[:,0:1], targets[:,1:2], color='red', marker='.', alpha=0.3, label='Target Points')
         plt.scatter(predictions[:,0:1], predictions[:,1:2], color='blue', marker='.', alpha=0.3, label='Predicted Points')
+        # Ploot the lines between the respctive predicted and target points
+        for i in range(targets.shape[0]):
+            plt.plot([targets[i,0], predictions[i,0]], [targets[i,1], predictions[i,1]], color='black', alpha=0.1)
         plt.grid(True)
         plt.xlabel('x (m)')
         plt.ylabel('y (m)')

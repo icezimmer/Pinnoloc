@@ -111,7 +111,7 @@ def main():
         df['Pos_ID'] = df.groupby(['X', 'Y']).ngroup()
         if args.preprocess:
             # For each ID take the Z score of RSS_2nd_Pol less than 2
-            df['zscore_RSS'] = df.groupby('Distance')['RSS'].transform(lambda x: stats.zscore(x))
+            df['zscore_RSS'] = df.groupby('Pos_ID')['RSS'].transform(lambda x: stats.zscore(x))
             df = df[df['zscore_RSS'].abs() < 2]
             df['zscore_AoA_Az'] = df.groupby('Pos_ID')['AoA_Az'].transform(lambda x: stats.zscore(x))
             df = df[df['zscore_AoA_Az'].abs() < 2]

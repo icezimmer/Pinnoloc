@@ -85,8 +85,8 @@ def main():
             df = df[df['zscore_AoA_Az'].abs() < 2]
         df['RSS_mean'] = df.groupby('Distance')['RSS'].transform('mean')
 
-    print(df.groupby('Distance')['RSS'].transform('std').mean())
-    print(df.groupby(['X', 'Y'])['AoA_Az'].transform('std').mean())
+    print('std of RSS w.r.t. distance (m): ', df.groupby('Distance')['RSS'].transform('std').mean())
+    print('std of AoA w.r.t. position (degree): ', df.groupby(['X', 'Y'])['AoA_Az'].transform('std').mean())
 
     # Sort the data by the Distance
     df = df.sort_values(by='Distance')

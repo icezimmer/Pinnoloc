@@ -12,10 +12,14 @@ class PositionLoss(torch.nn.Module):
                  max_y=4.8,
                  anchor_x=[0.0, 6.0, 12.0, 6.0],
                  anchor_y=[3.0, 0.0, 3.0, 6.0],
-                 rss_1m=[-55.0, -55.0, -55.0, -55.0],
-                 path_loss_exponent=[1.7, 1.7, 1.7, 1.7],
-                 sigma_rss=5.0,
-                 sigma_aoa=10.0,
+                #  rss_1m=[-55.0, -55.0, -55.0, -55.0],
+                 rss_1m=[-58.0, -58.0, -58.0, -58.0],
+                #  path_loss_exponent=[1.7, 1.7, 1.7, 1.7],
+                 path_loss_exponent=[1.69, 1.69, 1.69, 1.69],
+                #  sigma_rss=5.0,
+                 sigma_rss=2.0,
+                #  sigma_aoa=10.0,
+                 sigma_aoa=5.0,
                  seed=42,
                  mean_input=None, std_input=None, mean_target=None, std_target=None):
         """

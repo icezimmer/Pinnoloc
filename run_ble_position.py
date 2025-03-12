@@ -115,9 +115,9 @@ def main():
         'lambda_rss': 0.0,
         'lambda_azimuth': 0.0,
         'lambda_bc': 0.0,
-        'n_collocation': 256,
+        'n_collocation': 512,
         'n_boundary_collocation': 0,
-        'resampling_period': 10
+        'resampling_period': 16
     }
 
     logging.info(f"Setting seed: {seed_run}")
@@ -220,6 +220,13 @@ def run_ble_position(seed, device, develop_dataset, test_dataset, hyperparameter
     test_dataset = StandardizeDataset(base_dataset=test_dataset,
                                       mean_input=x_mean, std_input=x_std,
                                       mean_target=y_mean, std_target=y_std)
+    
+    # Print dimension of datasets
+    print('Train dataset: ', len(train_dataset))
+    print('Validation dataset: ', len(val_dataset))
+    print('Develop dataset: ', len(develop_dataset))
+    print('Test dataset: ', len(test_dataset))
+    print('Full dataset: ', len(develop_dataset)+len(test_dataset))
 
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)

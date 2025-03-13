@@ -224,7 +224,7 @@ class PositionLoss(torch.nn.Module):
             y_collocation = self.std_target[1:2] * y_collocation + self.mean_target[1:2]  # (N, 1)
             x_collocation = x_collocation - self.anchor_x  # (N, n_anchors)
             y_collocation = y_collocation - self.anchor_y  # (N, n_anchors)
-            distance_2 = torch.clamp(torch.pow(x_collocation, 2) + torch.pow(y_collocation, 2), min=1e-8)  # (N, n_anchors)
+            # distance_2 = torch.clamp(torch.pow(x_collocation, 2) + torch.pow(y_collocation, 2), min=1e-8)  # (N, n_anchors)
 
             residual_x = dx_dP + model.k * x_collocation  # (N, n_anchors)
             residual_y = dy_dP + model.k * y_collocation  # (N, n_anchors)
@@ -234,10 +234,10 @@ class PositionLoss(torch.nn.Module):
             rss_loss = (rss_x_loss + rss_y_loss) / 2
 
             # da/dp = d(atan(y/x))/dx * dx/dp + d(atan(y/x))/dy * dy/dp, assuming da/dp = 0
-            residual_azimuth = ((x_collocation / distance_2) * dy_dP) - ((y_collocation / distance_2) * dx_dP)  # (N, n_anchors)
-            azimuth_loss = torch.mean(torch.pow(residual_azimuth, 2))
+            # residual_azimuth = ((x_collocation / distance_2) * dy_dP) - ((y_collocation / distance_2) * dx_dP)  # (N, n_anchors)
+            # azimuth_loss = torch.mean(torch.pow(residual_azimuth, 2))
 
             # Compute total loss
-            total_loss = (self.lambda_data * data_loss) + (self.lambda_rss * rss_loss) + (self.lambda_azimuth * azimuth_loss) #+ (self.lambda_bc * boundary_loss)
+            total_loss = (self.lambda_data * data_loss) + (self.lambda_rss * rss_loss) #+ (self.lambda_azimuth * azimuth_loss) #+ (self.lambda_bc * boundary_loss)
         
         return total_loss

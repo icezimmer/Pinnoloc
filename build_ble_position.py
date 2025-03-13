@@ -12,9 +12,10 @@ import argparse
 
 def create_df(task):
     
-    def load_data(task):
+    def load_data(task, heading_label=-1):
         folder_0 = task.split('_')[0]
         data = load_raw_dataset(f'data_storage/Dataset_AoA_RSS_BLE51/{folder_0}/beacons/beacons_{task}.txt')
+        data['Heading'] = heading_label
         return data
 
     def load_gt(task):
@@ -25,7 +26,7 @@ def create_df(task):
     if task == 'static_all':
         task_list = ['static_east', 'static_north', 'static_south', 'static_west']
         gt_list = [load_gt(task) for task in task_list]
-        data_list = [load_data(task) for task in task_list]
+        data_list = [load_data(task, heading_label) for task, heading_label in zip(task_list, range(4))]
         gt = pd.concat(gt_list)
         data = pd.concat(data_list)
         gt = gt.sort_values(by='Start_Time')
@@ -77,9 +78,6 @@ def preprocess_df(df, channel, polarization, preprocess, buffer):
     # df.loc[df['Anchor_ID'] == 6503, 'Az_Arrival'] = np.pi - df.loc[df['Anchor_ID'] == 6503, 'Az_Arrival']  # Right Anchor (West direction)
     # df.loc[df['Anchor_ID'] == 6504, 'Az_Arrival'] = - (np.pi / 2) - df.loc[df['Anchor_ID'] == 6504, 'Az_Arrival']  # Top Anchor (South direction)
 
-    # df['AoA_Az'] = np.arctan2(np.sin(df['AoA_Az']), np.cos(df['AoA_Az']))  # set the angle between -pi and pi
-    # df['Az_Arrival'] = np.arctan2(np.sin(df['Az_Arrival']), np.cos(df['Az_Arrival']))  # set the angle between -pi and pi
-
     df['AoA_Az_x'] = np.cos(df['AoA_Az'])
     df['AoA_Az_y'] = np.sin(df['AoA_Az'])
 
@@ -90,34 +88,12 @@ def preprocess_df(df, channel, polarization, preprocess, buffer):
     else:
         df['RSS'] = df[f'RSS_{polarization}_Pol']
 
-    # pause = input("\nRSS for position (1.2, 1.2). Press Enter to continue...")
-    # df_bc1 = df.loc[(df['X'] == 1.2) & (df['Y'] == 1.2), ['Anchor_ID', 'Az_Arrival', 'AoA_Az', 'RSS']]
-    # df_bc1 = df_bc1.groupby(['Anchor_ID', 'Az_Arrival']).agg({'AoA_Az': 'mean', 'RSS': 'mean'}).reset_index()
-    # print(df_bc1)
-
-    # pause = input("\nRSS for position (10.8, 1.2). Press Enter to continue...")
-    # df_bc2 = df.loc[(df['X'] == 10.8) & (df['Y'] == 1.2), ['Anchor_ID', 'Az_Arrival', 'AoA_Az', 'RSS']]
-    # df_bc2 = df_bc2.groupby(['Anchor_ID', 'Az_Arrival']).agg({'AoA_Az': 'mean', 'RSS': 'mean'}).reset_index()
-    # print(df_bc2)
-
-    # pause = input("\nRSS for position (10.8, 4.8). Press Enter to continue...")
-    # df_bc3 = df.loc[(df['X'] == 10.8) & (df['Y'] == 4.8), ['Anchor_ID', 'Az_Arrival', 'AoA_Az', 'RSS']]
-    # df_bc3 = df_bc3.groupby(['Anchor_ID', 'Az_Arrival']).agg({'AoA_Az': 'mean', 'RSS': 'mean'}).reset_index()
-    # print(df_bc3)
-
-    # pause = input("\nRSS for position (1.2, 4.8). Press Enter to continue...")
-    # df_bc4 = df.loc[(df['X'] == 1.2) & (df['Y'] == 4.8), ['Anchor_ID', 'Az_Arrival', 'AoA_Az', 'RSS']]
-    # df_bc4 = df_bc4.groupby(['Anchor_ID', 'Az_Arrival']).agg({'AoA_Az': 'mean', 'RSS': 'mean'}).reset_index()
-    # print(df_bc4)
-
     pause = input("\nPress Enter to continue...")
     if preprocess:
         # For each Distance take the Z score of RSS less than 2
         df['Distance'] = ((df['X'] - df['Anchor_x'])**2 + (df['Y'] - df['Anchor_y'])**2)**0.5
         df['zscore_RSS'] = df.groupby(['Anchor_ID', 'Distance'])['RSS'].transform(lambda x: stats.zscore(x))
         df = df[df['zscore_RSS'].abs() < 2]
-        # df['zscore_AoA_Az'] = df.groupby(['Anchor_ID', 'X', 'Y'])['AoA_Az'].transform(lambda x: stats.zscore(x))
-        # df = df[df['zscore_AoA_Az'].abs() < 2]
         df['zscore_AoA_Az_x'] = df.groupby(['Anchor_ID', 'Distance'])['AoA_Az_x'].transform(lambda x: stats.zscore(x))
         df = df[df['zscore_AoA_Az_x'].abs() < 2]
         df['zscore_AoA_Az_y'] = df.groupby(['Anchor_ID', 'Distance'])['AoA_Az_y'].transform(lambda x: stats.zscore(x))
@@ -129,19 +105,17 @@ def preprocess_df(df, channel, polarization, preprocess, buffer):
     df["Epoch_Time_Buffer"] = (df["Epoch_Time"] // buffer).astype(int)
 
     grouped = (
-        df.groupby(["Epoch_Time_Buffer", "X", "Y", "Anchor_ID"], as_index=False)
+        df.groupby(["Epoch_Time_Buffer", "X", "Y", "Heading", "Anchor_ID"], as_index=False)
         .agg({
           "RSS": "last", # "RSS": lambda x: x.mode().iloc[0],  # Take first mode if tie
-          # "AoA_Az": "last"
           "AoA_Az_x": "last",
           "AoA_Az_y": "last"
       })
     )
 
     df_wide = grouped.pivot(
-    index=["Epoch_Time_Buffer", "X", "Y"], 
-    columns="Anchor_ID", 
-    # values=["RSS", "AoA_Az"]
+    index=["Epoch_Time_Buffer", "X", "Y", "Heading"], 
+    columns="Anchor_ID",
     values=["RSS", "AoA_Az_x", "AoA_Az_y"]
     )
     print(df_wide)
@@ -150,7 +124,7 @@ def preprocess_df(df, channel, polarization, preprocess, buffer):
     df_wide = (
         df_wide
         .sort_values(by="Epoch_Time_Buffer")
-        .groupby(["X", "Y"], group_keys=False)
+        .groupby(["X", "Y", "Heading"], group_keys=False)
         .apply(lambda g: g.ffill().bfill())
     )
     print(df_wide)
@@ -196,11 +170,8 @@ def main():
     logging.info(f"Creating BLE Position Dataset for task: {task}")
 
     df = create_df(task)
-    print(df)
     df = preprocess_df(df, channel=channel, polarization=polarization, preprocess=preprocess, buffer=buffer)
-    print(df)
 
-    # feature_columns = ['RSS', 'AoA_Az']
     feature_columns = ['RSS', 'AoA_Az_x', 'AoA_Az_y']
     target_column = ['X', 'Y']
     dataset = BLEDataset(
@@ -209,11 +180,24 @@ def main():
         target_column=target_column
         )
     
+    # create an array of criteria with id group of 'X', 'Y' and 'Heading' using groupby
+    criterion_to_stratify = df.groupby(['X', 'Y', 'Heading']).ngroup().values
+
     print('(', feature_columns, '), ', '(', target_column, ')')
     print(dataset[0])
+    
+    import matplotlib.pyplot as plt
+    plt.hist(criterion_to_stratify, bins=max(criterion_to_stratify)+1)
+    plt.title(f'Distribution of samples per point (Total: {len(criterion_to_stratify)})')
+    plt.xlabel('Point ID')
+    plt.ylabel('Count')
+    plt.show()
+
+    input("Press Enter to save...")
 
     logging.info('Saving dataset')
     save_data(dataset, os.path.join('datasets', task_name, 'full_dataset'))
+    save_data(criterion_to_stratify, os.path.join('datasets', task_name, 'criterion_to_stratify'))
     save_dict_to_yaml(vars(args), os.path.join('datasets', task_name, 'dataset_args.yaml'))
 
 

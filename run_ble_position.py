@@ -4,7 +4,7 @@ import torch
 from torch import optim
 from Pinnoloc.utils.experiments import set_seed
 from torch.utils.data import DataLoader
-from Pinnoloc.utils.split_data import random_split_dataset
+from Pinnoloc.utils.split_data import random_split_dataset, stratified_split_dataset
 from Pinnoloc.utils.printing import print_num_trainable_params, print_parameters
 from Pinnoloc.models.vector import StackedVectorModel, PositionModel
 from Pinnoloc.ml.optimization import setup_optimizer
@@ -83,11 +83,7 @@ def parse_args():
                                  'mobility_use-case1_run1', 'mobility_use-case1_run2', 'mobility_use-case1_run3', 'mobility_use-case1_run4',
                                  'mobility_use-case2_run1', 'mobility_use-case2_run2', 'mobility_use-case2_run3', 'mobility_use-case2_run4',
                                  'mobility_use-case3_run1', 'mobility_use-case3_run2', 'mobility_use-case3_run3', 'mobility_use-case3_run4'])
-
-    # If and only if develop is distinct from test, require the test_split argument
-    args, _ = parser.parse_known_args()
-    if args.develop == args.test:
-        parser.add_argument('--test_split', type=float, help='The test split ratio', required=True)
+    parser.add_argument('--usage', type=float, help='The usage ratio of the develop dataset', required=True)
 
     return parser.parse_args()
 
@@ -129,14 +125,21 @@ def main():
     logging.info(f'Loading {task_name_develop} develop and {task_name_test} test datasets.')
     try:
         if develop == test:
-            test_split = args.test_split
-            develop_split = 1.0 - test_split
+            develop_split = args.usage
+            test_split = 1.0 - develop_split
             full_dataset = load_data(os.path.join('datasets', task_name_develop, 'full_dataset'))
-            develop_dataset, test_dataset = random_split_dataset(full_dataset, val_split=args.test_split)
+            # develop_dataset, test_dataset = random_split_dataset(full_dataset, val_split=test_split)
+            criterion_to_stratify = load_data(os.path.join('datasets', task_name_develop, 'criterion_to_stratify'))
+            develop_dataset, test_dataset, criterion_to_stratify_develop, _ = stratified_split_dataset(dataset=full_dataset, stratify=criterion_to_stratify, val_split=test_split)
         else:
-            develop_split = 1.0
+            develop_split = args.usage
             test_split = 1.0
             develop_dataset = load_data(os.path.join('datasets', task_name_develop, 'full_dataset'))
+            if develop_split == 1.0:
+                criterion_to_stratify_develop = load_data(os.path.join('datasets', task_name_develop, 'criterion_to_stratify'))
+            else:
+                criterion_to_stratify = load_data(os.path.join('datasets', task_name_develop, 'criterion_to_stratify'))
+                develop_dataset, _, criterion_to_stratify_develop, _ = stratified_split_dataset(dataset=develop_dataset, stratify=criterion_to_stratify, val_split=1.0-develop_split)
             test_dataset = load_data(os.path.join('datasets', task_name_test, 'full_dataset'))
         develop_args = read_yaml_to_dict(os.path.join('datasets', task_name_develop, 'dataset_args.yaml'))
         develop_args = {f'develop_{key}': value for key, value in develop_args.items()}
@@ -164,7 +167,9 @@ def main():
                             list(develop_args.keys()) + list(test_args.keys()))
 
 
-    scores = run_ble_position(seed_run, device, develop_dataset, test_dataset, hyperparameters, verbose=True, plot=True)
+    scores = run_ble_position(seed_run, device, develop_dataset, test_dataset, hyperparameters,
+                              criterion_to_stratify_develop,
+                              verbose=True, plot=True)
 
     # save hyperparameters and scores in a new row of a CSV file
     with open(file_path, 'a') as f:
@@ -174,7 +179,9 @@ def main():
                         list(develop_args.values()) + list(test_args.values()))
 
 
-def run_ble_position(seed, device, develop_dataset, test_dataset, hyperparameters, verbose=False, plot=False):
+def run_ble_position(seed, device, develop_dataset, test_dataset, hyperparameters,
+                    criterion_to_stratify_develop,
+                    verbose=False, plot=False):
 
     n_layers = hyperparameters['n_layers']
     hidden_units = hyperparameters['hidden_units']
@@ -199,7 +206,8 @@ def run_ble_position(seed, device, develop_dataset, test_dataset, hyperparameter
     d_input = develop_dataset[0][0].shape[0]
 
     logging.info('Splitting develop data into training and validation data.')
-    train_dataset, val_dataset = random_split_dataset(dataset=develop_dataset, val_split=val_split)
+    # train_dataset, val_dataset = random_split_dataset(dataset=develop_dataset, val_split=val_split)
+    train_dataset, val_dataset, _, _ = stratified_split_dataset(dataset=develop_dataset, stratify=criterion_to_stratify_develop, val_split=val_split)
 
     logging.info('Standardizing datasets.')
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False)
@@ -220,13 +228,6 @@ def run_ble_position(seed, device, develop_dataset, test_dataset, hyperparameter
     test_dataset = StandardizeDataset(base_dataset=test_dataset,
                                       mean_input=x_mean, std_input=x_std,
                                       mean_target=y_mean, std_target=y_std)
-    
-    # Print dimension of datasets
-    print('Train dataset: ', len(train_dataset))
-    print('Validation dataset: ', len(val_dataset))
-    print('Develop dataset: ', len(develop_dataset))
-    print('Test dataset: ', len(test_dataset))
-    print('Full dataset: ', len(develop_dataset)+len(test_dataset))
 
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)

@@ -73,12 +73,12 @@ def main():
         'reduce_plateau': [0.1],
         'num_epochs': [500],
         'lambda_data': (0.0, 1.0),
-        'lambda_rss': (0.0, 1.0),
-        'lambda_azimuth': (0.0, 1.0),
+        'lambda_rss': (0.0, 10.0),
+        'lambda_azimuth': [0.0],
         'lambda_bc': [0.0],
-        'n_collocation': [20000],
+        'n_collocation': [512],
         'n_boundary_collocation': [0],
-        'resampling_period': [10]
+        'resampling_period': [16]
     }
 
     logging.info(f"Setting seed for search: {seed_search}")

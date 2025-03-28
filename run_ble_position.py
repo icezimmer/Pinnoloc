@@ -108,12 +108,13 @@ def main():
         'reduce_plateau': 0.1,
         'num_epochs': 500,
         'lambda_data': 1.0,
-        'lambda_rss': 0.0,
-        'lambda_azimuth': 0.0,
+        'lambda_physics': 100.0,
         'lambda_bc': 0.0,
         'n_collocation': 512,
-        'n_boundary_collocation': 0,
-        'resampling_period': 16
+        'n_boundary_collocation': 32,
+        'resampling_period': 16,
+        'sigma_rss': 2.0,  # 2.0
+        'sigma_aoa': 5.0,  # 5.0
     }
 
     logging.info(f"Setting seed: {seed_run}")
@@ -193,12 +194,13 @@ def run_ble_position(seed, device, develop_dataset, test_dataset, hyperparameter
     reduce_plateau = hyperparameters['reduce_plateau']
     num_epochs = hyperparameters['num_epochs']
     lambda_data = hyperparameters['lambda_data']
-    lambda_rss = hyperparameters['lambda_rss']
-    lambda_azimuth = hyperparameters['lambda_azimuth']
+    lambda_physics = hyperparameters['lambda_physics']
     lambda_bc = hyperparameters['lambda_bc']
     n_collocation = hyperparameters['n_collocation']
     n_boundary_collocation = hyperparameters['n_boundary_collocation']
     resampling_period = hyperparameters['resampling_period']
+    sigma_rss = hyperparameters['sigma_rss']
+    sigma_aoa = hyperparameters['sigma_aoa']
 
     logging.info(f"Setting seed: {seed}")
     set_seed(seed)
@@ -243,10 +245,11 @@ def run_ble_position(seed, device, develop_dataset, test_dataset, hyperparameter
     model.to(device=torch.device(device))
 
     logging.info('Setting optimizer and trainer.')
-    criterion = PositionLoss(lambda_data=lambda_data, lambda_rss=lambda_rss, lambda_azimuth=lambda_azimuth, lambda_bc=lambda_bc,
+    criterion = PositionLoss(lambda_data=lambda_data, lambda_physics=lambda_physics, lambda_bc=lambda_bc,
                              n_collocation=n_collocation, n_boundary_collocation=n_boundary_collocation,
                              seed=seed,
-                             mean_input=x_mean, std_input=x_std, mean_target=y_mean, std_target=y_std)
+                             mean_input=x_mean, std_input=x_std, mean_target=y_mean, std_target=y_std,
+                             sigma_rss=sigma_rss, sigma_aoa=sigma_aoa)
     criterion.to(device=torch.device(device))
     optimizer = optim.AdamW(params=model.parameters(), lr=lr, weight_decay=weight_decay)
     trainer = TrainPhysicsModel(model=model, optimizer=optimizer, criterion=criterion,
